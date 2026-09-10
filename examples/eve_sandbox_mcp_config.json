@@ -1,0 +1,39 @@
+{
+  "sandbox": {
+    "type": "container",
+    "image": "python:3.12-slim",
+    "working_dir": "/workspace",
+    "allow_network": true,
+    "mounts": [
+      {
+        "source": "/home/runner/work/gcs_eevee_assistant/gcs_eevee_assistant",
+        "target": "/workspace",
+        "read_only": false
+      }
+    ],
+    "allowed_commands": [
+      "python",
+      "python3"
+    ]
+  },
+  "mcp_servers": {
+    "filesystem": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "/workspace"
+      ]
+    },
+    "github": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-github"
+      ],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_PERSONAL_ACCESS_TOKEN}"
+      }
+    }
+  }
+}
