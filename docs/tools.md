@@ -21,22 +21,50 @@ Para EVE el transporte es **`http`**: EVE corre fuera del proceso del GCS y
 `stdio` no aplica. `sse` queda descartado: la implementación actual soporta una
 única conexión simultánea.
 
-### Configuración en EVE
+### Configuración en eve
 
-- Config real: [`examples/mcp/gcs_mcp_config.json`](../examples/mcp/gcs_mcp_config.json)
+La conexión vive en [`agent/connections/multiuav-gcs.ts`](../agent/connections/multiuav-gcs.ts)
+(`defineMcpClientConnection`). El nombre del archivo es el nombre de la
+conexión, y solo admite minúsculas y guiones — de ahí `multiuav-gcs`, no
+`multiuav_gcs`.
 
-El esquema de `mcp_servers` heredado solo soportaba procesos locales
-(`command`/`args`/`env`). Se extiende con entradas remotas:
-
-```json
-{
-  "type": "http",
-  "url": "${GCS_MCP_URL}",
-  "headers": {
-    "Authorization": "Bearer ${GCS_MCP_TOKEN}"
-  }
-}
+```ts
+export default defineMcpClientConnection({
+  url: process.env.GCS_MCP_URL ?? "http://127.0.0.1:3001/mcp",
+  description: "…",              // esto es lo que lee connection_search
+  tools: { allow: ALLOWED_TOOLS },
+  approval: …,                   // gate humano en tools de vuelo
+});
 ```
+
+Cómo las ve el modelo: **no** recibe las tools de arranque. Las descubre con la
+tool built-in `connection_search` (busca por keywords sobre la `description` de
+la conexión y de cada tool) y después las llama por su nombre calificado,
+`multiuav-gcs__get_devices`. Por eso la `description` de la conexión se escribe
+para el modelo, no para el lector.
+
+Levantar el MCP server antes de usar el agente:
+
+```bash
+cd llm_planner_gcs/mcp_server && npx tsx src/index.ts http   # :3001/mcp
+```
+
+### Aprobación humana en tools de vuelo
+
+`load_mission_to_uav`, `start_mission` y `send_command` tienen
+`approval: "user-approval"`: el turno se pausa y espera confirmación de una
+persona antes de ejecutarlas. Todo lo demás (lectura, visualización,
+validación) corre sin gate. La frontera es deliberada: **el agente piensa y
+decide; nada que mueva un UAV real pasa sin que alguien lo apruebe.**
+
+### Incompatibilidad verificada: `web_search` + Gemini
+
+[`agent/tools/web_search.ts`](../agent/tools/web_search.ts) desactiva la tool
+built-in `web_search`. Es *provider-defined*, y Gemini no soporta combinarlas
+con function tools (`"combination of function and provider-defined tools is not
+supported"`): con `web_search` activa, el agente **no emite ningún tool call** —
+anuncia que va a buscar la herramienta y termina el turno. El agente opera
+contra el GCS, no contra la web, así que no se pierde nada.
 
 **Gap de seguridad, explícito**: el endpoint `/mcp` actual
 (`src/httpStemeable.ts`) no valida ningún header de autenticación — solo
@@ -80,23 +108,25 @@ en EVE la delegación del agente principal al subagente `planner` es **nativa**
 (mecanismo de subagentes de EVE), no una tool MCP que rebota por REST. El
 contrato completo está en [delegation.md](delegation.md).
 
-## `allowed_tools` por agente
+## Allowlist de tools
 
-Cada subagente declara sus tools permitidas en su payload de creación
-(campo `allowed_tools`), espejo del frontmatter `allowedTools` de
-`multiuav_gcs/server/models/chat/agents/*.md`:
+La conexión declara `tools: { allow: [...] }`: allowlist estricta, espejo del
+frontmatter `allowedTools` de `multiuav_gcs/server/models/chat/agents/*.md`.
+Toda tool que no esté listada es invisible para el modelo.
 
-| Agente | Payload | Tools |
-| ------ | ------- | ----- |
-| principal (`default`) | [`agent_payload.json`](../examples/agents/agent_payload.json) | `get_devices`, `get_fleet_telemetry`, `get_registered_objects`, `get_element_groups`, `show_mission_to_user`, `load_mission_to_uav`, `start_mission` + delegación nativa en `planner` |
-| `planner` | [`subagent_planner_payload.json`](../examples/agents/subagent_planner_payload.json) | `submit_mission_plan`, `validate_mission` |
+| Agente | Dónde se declara | Tools |
+| ------ | ---------------- | ----- |
+| principal (`default`) | [`agent/connections/multiuav-gcs.ts`](../agent/connections/multiuav-gcs.ts) | `get_devices`, `get_fleet_telemetry`, `get_registered_objects`, `get_element_groups`, `get_bases_with_assignments`, `get_available_commands`, `show_mission_to_user`, `show_mission_xyz`, `load_mission_to_uav`, `start_mission`, `validate_mission`, `submit_mission_plan` |
+| `planner` | pendiente: `agent/subagents/planner/` | `submit_mission_plan`, `validate_mission` |
 
 Notas:
 
-- El listado es **allowlist estricta**: toda tool no listada es invisible para
-  ese agente. Es lo que impide que el agente principal llame
-  `submit_mission_plan` o que el planner arranque misiones.
-- El perfil `planner` de EVE adopta la variante **single-turn**
+- Hoy la allowlist es **única y compartida**, porque el agente principal es el
+  único que existe. Al crear el subagente `planner` hay que separarlas: el
+  principal pierde `submit_mission_plan`/`validate_mission` y el planner pierde
+  todo lo demás. Eso es lo que impide que el principal planifique a mano o que
+  el planner arranque misiones.
+- El perfil `planner` adopta la variante **single-turn**
   (`plannerFast` en multiuav_gcs: razona los 5 pasos y entrega con un solo
   `submit_mission_plan`, luego `validate_mission`). La variante turno-a-turno
   (`mark_step_complete`, hasta 18 iteraciones) queda como alternativa si el
