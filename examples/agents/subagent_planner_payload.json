@@ -7,6 +7,10 @@
     "submit_mission_plan",
     "validate_mission"
   ],
+  "limits": {
+    "max_tool_iterations": 18,
+    "turn_timeout_seconds": 900
+  },
   "config": {
     "mcp_config_path": "examples/mcp/gcs_mcp_config.json",
     "sandbox_config_path": "examples/sandbox/planner.json"

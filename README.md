@@ -17,6 +17,7 @@ Cada documento cubre una sola responsabilidad:
 | [`docs/conversation.md`](docs/conversation.md) | Contrato de threads y mensajes: endpoints, esquema normalizado, concurrencia (`409`). |
 | [`docs/tools.md`](docs/tools.md) | MCP real del GCS: transportes, inventario de tools, `allowed_tools` por agente. |
 | [`docs/sandbox.md`](docs/sandbox.md) | Sandbox Python: pipeline de waypoints, datos como archivos, config por agente. |
+| [`docs/lifecycle.md`](docs/lifecycle.md) | Ciclo de vida: límites por agente, timeouts, reporte de errores, expiración. |
 
 ## Estructura
 
@@ -48,6 +49,6 @@ export EVE_API_KEY="<api-key>"
 | 1 | Contrato de conversación (threads, mensajes, 409) | Hecho |
 | 2 | Tool-calling contra el MCP real del GCS (`allowed_tools` por subagente) | Hecho |
 | 3 | Sandbox Python con caso de uso real | Hecho |
-| 4 | Ciclo de vida y resiliencia (timeouts, límites de iteración) | Pendiente |
+| 4 | Ciclo de vida y resiliencia (timeouts, límites de iteración) | Hecho |
 | 5 | Resultado del subagente hacia el thread padre | Pendiente |
 | 6 | Consolidación final | Pendiente |

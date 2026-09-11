@@ -62,8 +62,8 @@ Respuesta `200`:
 | `running` | Hay un turno en ejecución (loop de tools incluido). Rechaza mensajes con `409`. |
 
 La transición `running → idle` ocurre siempre al terminar el turno, tanto en
-éxito como en error. Los timeouts de reloj y el límite de iteraciones del loop
-de tools se definen en la Fase 4 (ciclo de vida y resiliencia).
+éxito como en error. Los timeouts de reloj, el límite de iteraciones del loop
+de tools y la expiración de threads están en [lifecycle.md](lifecycle.md).
 
 ### Enviar mensaje (ejecuta el turno completo)
 
@@ -116,6 +116,7 @@ tiene esta forma:
 | `content`   | string \| null   | Texto plano derivado del payload (para render y búsqueda).        |
 | `call_id`   | string \| null   | Presente en `tool_call` y `tool_result`; empareja el par. `null` en el resto. |
 | `timestamp` | string (ISO 8601 UTC) | Momento de creación del mensaje.                             |
+| `status`    | enum (opcional)  | `error` en el mensaje final de un turno fallido (ver [lifecycle.md](lifecycle.md)); ausente en el resto. |
 
 Reglas:
 
