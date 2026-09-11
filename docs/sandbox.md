@@ -53,8 +53,9 @@ Layout dentro de todo sandbox:
   data/       escritura — entrada/salida de la misión en curso
 ```
 
-Los mounts de solo lectura apuntan a `scripts/sandbox/` de este repo: los
-scripts preconfigurados están versionados acá, no se generan en runtime.
+Los scripts preconfigurados viven en `agent/sandbox/workspace/` de este repo
+(eve siembra ese directorio en `/workspace` al crear el sandbox): están
+versionados acá, no se generan en runtime.
 
 ## Flujo de datos del planner (archivos, no contexto)
 

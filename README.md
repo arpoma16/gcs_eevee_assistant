@@ -23,6 +23,20 @@ Cada documento cubre una sola responsabilidad:
 ## Estructura
 
 ```
+agent/                      El agente eve (el framework compila este directorio)
+  agent.ts                  Configuración runtime (modelo, opciones)
+  instructions.md           System prompt del agente principal
+  instrumentation.ts        Observabilidad (OTel; local automática)
+  channels/                 Entrada HTTP (canal eve por defecto)
+  connections/              Conexiones MCP/OpenAPI (→ mcp_server de multiuav)
+  tools/                    Tools tipadas propias
+  skills/                   Procedimientos reutilizables
+  subagents/                Subagentes (→ planner)
+  sandbox/
+    sandbox.ts              Definición del sandbox
+    workspace/tools/        Smoke test (sembrado en /workspace/tools)
+    workspace/pipeline/     Pipeline de planificación, steps 2/4/5 (→ /workspace/pipeline)
+  hooks/  lib/  schedules/  Ciclo de vida, código compartido, tareas recurrentes
 docs/                       Especificación, un archivo por responsabilidad
 examples/
   agents/                   Payloads de creación de agente y subagentes
@@ -31,8 +45,6 @@ examples/
   sandbox/                  Configs de sandbox por agente + datos de ejemplo
 scripts/
   eve_api_curl.sh           Flujo completo ejecutable (incluye reintento ante 409)
-  sandbox/common/           Smoke test del sandbox
-  sandbox/pipeline/         Pipeline de planificación (steps 2, 4 y 5 como scripts)
 ```
 
 ## Uso rápido
