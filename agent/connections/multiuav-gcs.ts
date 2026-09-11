@@ -3,22 +3,20 @@ import { defineMcpClientConnection } from "eve/connections";
 // Tools cuyo efecto llega a los UAVs reales: siempre piden aprobación humana.
 const FLIGHT_CRITICAL_TOOLS = ["load_mission_to_uav", "start_mission", "send_command"];
 
-// Allowlist estricta (docs/tools.md). Quedan fuera a propósito:
+// Allowlist estricta del agente operador (docs/tools.md). Quedan fuera a propósito:
 // - request_mission_plan / delegate_mission_plan_generation: rebotan al
 //   orquestador viejo del GCS; acá la delegación al planner es nativa de eve.
+// - mark_step_complete / validate_mission: son del planner, que declara su
+//   propia connection en agent/subagents/planner/connections/.
 const ALLOWED_TOOLS = [
   "get_devices",
   "get_fleet_telemetry",
   "get_registered_objects",
   "get_element_groups",
   "get_bases_with_assignments",
-  "get_available_commands",
   "show_mission_to_user",
-  "show_mission_xyz",
   "load_mission_to_uav",
   "start_mission",
-  "validate_mission",
-  "submit_mission_plan",
 ];
 
 export default defineMcpClientConnection({
