@@ -6,7 +6,7 @@ import { openai } from "@ai-sdk/openai";
 // high en multiuav_gcs): geometría 3D, coste de rutas y reparación iterativa
 // contra el validador. Usa el modelo más capaz disponible, no el rápido.
 const model = process.env.GOOGLE_GENERATIVE_AI_API_KEY
-  ? google(process.env.EVE_PLANNER_MODEL ?? "gemini-2.5-pro")
+  ? google(process.env.EVE_PLANNER_MODEL ?? "gemini-3.1-pro-preview")
   : openai(process.env.EVE_PLANNER_MODEL ?? "gpt-5.1");
 
 export default defineAgent({
