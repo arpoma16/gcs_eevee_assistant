@@ -52,4 +52,4 @@ export EVE_API_KEY="<api-key>"
 | 3 | Sandbox Python con caso de uso real | Hecho |
 | 4 | Ciclo de vida y resiliencia (timeouts, límites de iteración) | Hecho |
 | 5 | Resultado del subagente hacia el thread padre | Hecho |
-| 6 | Consolidación final | Pendiente |
+| 6 | Consolidación final | Hecho |
