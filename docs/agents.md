@@ -13,7 +13,9 @@ Define la topología de agentes del sistema y sus payloads de creación.
    `capability`). En EVE se implementan como subagentes con instrucciones y
    tools propias — no como metadata suelta sobre un agente genérico.
 3. **Un sandbox por conversación**, compartido por el agente y sus subagentes
-   dentro del mismo thread, persistente mientras el thread esté activo.
+   dentro del mismo thread, persistente mientras el thread esté activo. Cada
+   agente puede traer su sandbox preconfigurado, con fallback a uno default
+   (ver [sandbox.md](sandbox.md)).
 
 ## Crear el agente principal
 

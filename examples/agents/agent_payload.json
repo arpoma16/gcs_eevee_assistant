@@ -14,6 +14,6 @@
   ],
   "config": {
     "mcp_config_path": "examples/mcp/gcs_mcp_config.json",
-    "sandbox_config_path": "examples/mcp/sandbox_mcp_config.json"
+    "sandbox_config_path": "examples/sandbox/default.json"
   }
 }

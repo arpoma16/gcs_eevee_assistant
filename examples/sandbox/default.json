@@ -1,0 +1,19 @@
+{
+  "sandbox": {
+    "type": "container",
+    "image": "python:3.12-slim",
+    "working_dir": "/workspace",
+    "allow_network": false,
+    "mounts": [
+      {
+        "source": "${GCS_EEVEE_ROOT}/scripts/sandbox/common",
+        "target": "/workspace/tools",
+        "read_only": true
+      }
+    ],
+    "allowed_commands": [
+      "python",
+      "python3"
+    ]
+  }
+}

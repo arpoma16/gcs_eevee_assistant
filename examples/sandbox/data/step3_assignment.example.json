@@ -1,0 +1,9 @@
+{
+  "assignments": [
+    { "drone_name": "uav_1", "target_names": ["A1", "B1"] },
+    { "drone_name": "uav_2", "target_names": ["A2", "B2"] }
+  ],
+  "n_assigned": 4,
+  "n_total": 4,
+  "balance_ratio": 1.0
+}

@@ -1,0 +1,7 @@
+{
+  "viewpoints_per_target": 4,
+  "stand_off": 15.0,
+  "altitude_fraction": 0.5,
+  "takeoff_landing_alt": 5.0,
+  "cruise_speed": 5.0
+}

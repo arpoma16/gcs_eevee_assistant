@@ -1,0 +1,16 @@
+{
+  "global_origin": { "lat": 37.4102, "lon": -6.0018, "alt": 30.0 },
+  "drones": [
+    { "name": "uav_1", "type": "px4_ros2", "position": { "x": -50.0, "y": -40.0, "z": 0.0 } },
+    { "name": "uav_2", "type": "px4_ros2", "position": { "x": 150.0, "y": -40.0, "z": 0.0 } }
+  ],
+  "targets": [
+    { "name": "A1", "type": "wind turbine", "position": { "x": 0.0, "y": 0.0, "z": 0.0 }, "dimensions": { "height": 80.0, "radius": 3.0 } },
+    { "name": "A2", "type": "wind turbine", "position": { "x": 100.0, "y": 0.0, "z": 0.0 }, "dimensions": { "height": 80.0, "radius": 3.0 } },
+    { "name": "B1", "type": "wind turbine", "position": { "x": 0.0, "y": 120.0, "z": 0.0 }, "dimensions": { "height": 80.0, "radius": 3.0 } },
+    { "name": "B2", "type": "wind turbine", "position": { "x": 100.0, "y": 120.0, "z": 0.0 }, "dimensions": { "height": 80.0, "radius": 3.0 } }
+  ],
+  "obstacles": [
+    { "id": "warehouse_1", "type": "building", "position": { "x": 50.0, "y": 60.0, "z": 0.0 }, "dimensions": { "height": 12.0, "width": 20.0, "length": 30.0 } }
+  ]
+}
