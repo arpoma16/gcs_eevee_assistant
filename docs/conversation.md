@@ -101,8 +101,10 @@ GET /v1/agents/{agentId}/threads/{threadId}/messages
 ```
 
 Respuesta `200` con el historial completo del thread (incluye `system`), en el
-mismo esquema normalizado. EVE es la fuente de verdad del historial; la UI del
-GCS lo lee de acá, no mantiene una copia autoritativa.
+mismo esquema normalizado. Acepta `?after=<timestamp ISO 8601>` para lectura
+incremental (lo usa el polling de resultados asíncronos, ver
+[delegation.md](delegation.md)). EVE es la fuente de verdad del historial; la
+UI del GCS lo lee de acá, no mantiene una copia autoritativa.
 
 ## Esquema normalizado de mensajes
 
