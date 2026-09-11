@@ -15,6 +15,7 @@ Cada documento cubre una sola responsabilidad:
 | [`docs/setup.md`](docs/setup.md) | Variables de entorno, autenticación y convenciones. |
 | [`docs/agents.md`](docs/agents.md) | Agente principal fijo y subagentes (`planner`). |
 | [`docs/conversation.md`](docs/conversation.md) | Contrato de threads y mensajes: endpoints, esquema normalizado, concurrencia (`409`). |
+| [`docs/tools.md`](docs/tools.md) | MCP real del GCS: transportes, inventario de tools, `allowed_tools` por agente. |
 
 ## Estructura
 
@@ -42,7 +43,7 @@ export EVE_API_KEY="<api-key>"
 | Fase | Alcance | Estado |
 | ---- | ------- | ------ |
 | 1 | Contrato de conversación (threads, mensajes, 409) | Hecho |
-| 2 | Tool-calling contra el MCP real del GCS (`allowed_tools` por subagente) | Pendiente |
+| 2 | Tool-calling contra el MCP real del GCS (`allowed_tools` por subagente) | Hecho |
 | 3 | Sandbox Python con caso de uso real | Pendiente |
 | 4 | Ciclo de vida y resiliencia (timeouts, límites de iteración) | Pendiente |
 | 5 | Resultado del subagente hacia el thread padre | Pendiente |

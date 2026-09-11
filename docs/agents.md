@@ -39,12 +39,16 @@ POST /v1/agents/{agentId}/subagents
 
 Las `instructions` de los payloads son resúmenes de arranque. Los system
 prompts completos se portan desde `multiuav_gcs/server/models/chat/agents/`
-(`default.md`, `planner.md`) cuando se cierre el mapeo de tools.
+(`default.md`, `planner.md`) cuando se cierre el flujo de la Fase 5.
+
+## Tools por agente
+
+Cada payload declara `allowed_tools` como allowlist estricta sobre el MCP real
+del GCS. El inventario completo de tools, el mapeo por agente y la
+configuración del transporte están en [tools.md](tools.md).
 
 ## Pendiente (fases siguientes)
 
-- **Fase 2**: campo `allowed_tools` en el payload de cada subagente, mapeando
-  cada perfil a sus tools MCP permitidas (hoy en el frontmatter de los `.md`).
 - **Fase 5**: contrato del resultado del subagente hacia el thread padre
   (equivalente a `SubAgentManager.injectSubAgentResponse` de `multiuav_gcs`:
   el resultado se añade como mensaje `subagent_result` nuevo y el plan de

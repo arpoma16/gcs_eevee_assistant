@@ -3,7 +3,17 @@
   "description": "Agente principal del GCS multiuav: atiende al operador, ejecuta tools de vuelo y delega la planificación de misiones en el subagente planner.",
   "model": "gpt-4.1",
   "instructions": "Sos el asistente del Ground Control Station de una flota multi-UAV. Atendés al operador en su idioma, ejecutás tools de vuelo directas (estado, despegue, aterrizaje) y delegás la construcción de planes de misión en el subagente planner. Nunca inventás estado de los drones: siempre lo consultás con tools.",
+  "allowed_tools": [
+    "get_devices",
+    "get_fleet_telemetry",
+    "get_registered_objects",
+    "get_element_groups",
+    "show_mission_to_user",
+    "load_mission_to_uav",
+    "start_mission"
+  ],
   "config": {
+    "mcp_config_path": "examples/mcp/gcs_mcp_config.json",
     "sandbox_config_path": "examples/mcp/sandbox_mcp_config.json"
   }
 }
