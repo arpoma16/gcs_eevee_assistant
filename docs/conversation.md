@@ -125,7 +125,7 @@ Reglas:
 - `subagent_result` es el resultado asíncrono de un subagente, **añadido como
   mensaje nuevo** al thread padre — nunca se reescribe el `tool_result`
   original. Su `content` es un JSON string con `{ "status", "description",
-  ...payload }`. El detalle del flujo subagente → padre se define en la Fase 5.
+  ...payload }`. Contrato completo en [delegation.md](delegation.md).
 - `reasoning` y `multipart` existen en el vocabulario desde el día uno aunque
   el primer cliente no los renderice: eliminar valores de un enum publicado es
   un breaking change; agregarlos después también.

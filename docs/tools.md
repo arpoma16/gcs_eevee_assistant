@@ -78,8 +78,7 @@ que llaman **de vuelta al orquestador viejo** (`POST /chat/subagents` y
 Como EVE reemplaza a ese orquestador, estas dos tools quedan fuera del mapeo:
 en EVE la delegación del agente principal al subagente `planner` es **nativa**
 (mecanismo de subagentes de EVE), no una tool MCP que rebota por REST. El
-contrato del resultado del subagente hacia el thread padre se define en la
-Fase 5.
+contrato completo está en [delegation.md](delegation.md).
 
 ## `allowed_tools` por agente
 

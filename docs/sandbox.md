@@ -59,7 +59,7 @@ scripts preconfigurados están versionados acá, no se generan en runtime.
 ## Flujo de datos del planner (archivos, no contexto)
 
 ```
-mission_input.json          (inyectado por el GCS al delegar — NO pasa por el modelo)
+mission_input.json          (materializado por context_files al delegar — NO pasa por el modelo)
 strategy_params.json        (lo escribe el planner: sus decisiones de estrategia)
         │
         ▼
@@ -88,7 +88,9 @@ Los campos narrativos (`standing`, `layout`, `approach_notes`,
 
 `mission_input.json` es el equivalente en archivo de los `contextParams` que
 hoy `subAgentRegistry` inyecta en las tool calls del subagente: datos
-estructurados que llegan por un canal que el modelo no puede corromper.
+estructurados que llegan por un canal que el modelo no puede corromper. El
+mecanismo de entrega (`context_files` de la delegación) está en
+[delegation.md](delegation.md).
 
 ## Smoke test
 

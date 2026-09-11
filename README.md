@@ -18,6 +18,7 @@ Cada documento cubre una sola responsabilidad:
 | [`docs/tools.md`](docs/tools.md) | MCP real del GCS: transportes, inventario de tools, `allowed_tools` por agente. |
 | [`docs/sandbox.md`](docs/sandbox.md) | Sandbox Python: pipeline de waypoints, datos como archivos, config por agente. |
 | [`docs/lifecycle.md`](docs/lifecycle.md) | Ciclo de vida: límites por agente, timeouts, reporte de errores, expiración. |
+| [`docs/delegation.md`](docs/delegation.md) | Delegación nativa y resultado asíncrono del subagente al thread padre. |
 
 ## Estructura
 
@@ -50,5 +51,5 @@ export EVE_API_KEY="<api-key>"
 | 2 | Tool-calling contra el MCP real del GCS (`allowed_tools` por subagente) | Hecho |
 | 3 | Sandbox Python con caso de uso real | Hecho |
 | 4 | Ciclo de vida y resiliencia (timeouts, límites de iteración) | Hecho |
-| 5 | Resultado del subagente hacia el thread padre | Pendiente |
+| 5 | Resultado del subagente hacia el thread padre | Hecho |
 | 6 | Consolidación final | Pendiente |

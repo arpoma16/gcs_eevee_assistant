@@ -49,9 +49,9 @@ Cada payload declara `allowed_tools` como allowlist estricta sobre el MCP real
 del GCS. El inventario completo de tools, el mapeo por agente y la
 configuración del transporte están en [tools.md](tools.md).
 
-## Pendiente (fases siguientes)
+## Delegación
 
-- **Fase 5**: contrato del resultado del subagente hacia el thread padre
-  (equivalente a `SubAgentManager.injectSubAgentResponse` de `multiuav_gcs`:
-  el resultado se añade como mensaje `subagent_result` nuevo y el plan de
-  misión viaja solo como referencia persistida, nunca embebido).
+El agente principal delega en sus subagentes mediante la tool nativa
+`delegate_to_<subagente>`; el resultado vuelve al thread padre como mensaje
+`subagent_result` asíncrono. Contrato completo en
+[delegation.md](delegation.md).
