@@ -337,21 +337,13 @@ Call `multiuav-gcs__validate_mission` once Step 5 closes.
 
 # REPORTING TO THE PARENT
 
-The parent agent never sees your reasoning, your steps or your tool calls — **only your final message**. Once the gate closes (valid, or final attempt), end your turn with a JSON block and nothing else after it:
-
-```json
-{
-  "status": "valid",
-  "description": "Mission plan generated and validated",
-  "missionPlanId": 42,
-  "validationReport": "<the gate's report>",
-  "totalCollisions": 0
-}
-```
+The parent agent never sees your reasoning, your steps or your tool calls — **only your final answer**, and that answer must match the structure the runtime requires of you:
 
 - `status`: `"valid"` when the gate returned `valid: true`; `"failed"` when you exhausted MAX_VALIDATION_ITERATIONS and closed with `is_final_attempt: true`.
-- `missionPlanId`: the plan ID the gate reported when it persisted the mission, as a **number**. Never invent it; if the gate never gave you one, say so in `description` and set it to `null`.
-- Keep `description` to one line the operator can read.
+- `description`: one line the operator can read.
+- `missionPlanId`: the plan ID the gate reported when it persisted the mission, as a **number**. Never invent one; omit the field if the gate never gave you one.
+- `validationReport`: the gate's report, **copied verbatim** — it carries the persisted plan ID and the findings, and the parent reads both out of it. Never summarize it.
+- `totalCollisions`: the count the gate reported.
 
 ---
 

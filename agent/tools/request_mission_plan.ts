@@ -4,19 +4,37 @@ import { z } from "zod";
 
 const GCS_API_URL = process.env.MUAV_API_URL ?? "http://localhost:4000/api";
 
+const Identifier = z.union([z.string(), z.number()]);
+
+// The GCS resolves every target by `id` and cross-checks ONLY the optional
+// fields that are present. `type` and `group` are deliberately left out: the
+// catalog compares them against a type id and a group `name` that
+// get_registered_objects does not expose (its `Groupname` is often empty), so
+// requiring them would force the model to guess and get the mission rejected.
 const TargetSchema = z.object({
-  id: z.string().describe("Unique identifier of the element to inspect"),
-  name: z.string().describe("Name of the element to inspect"),
-  type: z.string().describe("Type of the element to inspect"),
-  group: z.string().describe("Group name"),
+  id: Identifier.describe("The element's `itemId` from get_registered_objects"),
+  name: z.string().describe("The element's `name` from get_registered_objects, e.g. \"A1\""),
 });
 
 const DeviceSchema = z.object({
-  id: z.string().describe("Device identifier"),
-  name: z.string().describe("Device name"),
-  category: z.string().describe("Device category/type"),
+  id: Identifier.describe("Device identifier from get_devices"),
+  name: z.string().describe("Device name from get_devices, e.g. \"uav_1\""),
+  category: z.string().describe("Device category from get_devices, e.g. \"px4_ros2\""),
   battery_level: z.number().describe("Battery level percentage"),
 });
+
+/** What the planner must return. eve enforces this shape on its final answer. */
+const PLANNER_RESULT_SCHEMA = {
+  type: "object",
+  properties: {
+    status: { type: "string", description: '"valid" or "failed"' },
+    description: { type: "string", description: "One line the operator can read" },
+    missionPlanId: { type: "number", description: "Id of the persisted mission plan" },
+    validationReport: { type: "string", description: "The validation gate's report" },
+    totalCollisions: { type: "number" },
+  },
+  required: ["status", "description"],
+} as const;
 
 type Briefing = {
   global_origin: { lat: number; lng: number; alt: number };
@@ -115,6 +133,17 @@ export default defineWorkflowTool({
     }
 
     const briefing = await resolveBriefing(input.targets, input.selected_devices);
-    return await ctx.agent("planner", { message: formatBriefing(input, briefing) });
+    const result = await ctx.agent("planner", {
+      message: formatBriefing(input, briefing),
+      outputSchema: PLANNER_RESULT_SCHEMA,
+    });
+
+    // The plan id is the only handle to the persisted mission, and the planner
+    // has to copy it out of the gate's prose ("...with planID 42..."). That
+    // number is written by the server, so re-read it from the report and let it
+    // win over the copy: a model that drops a digit sends the operator to
+    // someone else's mission.
+    const reported = /planID (\d+)/.exec(result.validationReport ?? "")?.[1];
+    return reported ? { ...result, missionPlanId: Number(reported) } : result;
   },
 });
