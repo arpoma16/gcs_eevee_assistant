@@ -1,99 +1,126 @@
-# Delegación y resultados asíncronos (subagente → thread padre)
+# Delegación y resultados asíncronos (operador → planner)
 
-Define cómo el agente principal delega en un subagente y cómo el resultado
-vuelve al thread padre. Reemplaza el mecanismo actual de `multiuav_gcs`
-(tools MCP `request_mission_plan`/`delegate_mission_plan_generation` que
-rebotan por REST a `/chat/subagents`) por delegación **nativa de EVE**,
-conservando su semántica — que es la parte que ya funciona.
+Define cómo el agente principal delega en el subagente `planner` y cómo el
+resultado vuelve. Reemplaza el rebote por REST del orquestador viejo
+(`request_mission_plan` MCP → `POST /chat/subagents`) por delegación nativa de
+eve, conservando la semántica — que es la parte que ya funcionaba.
 
-## Modelo: asíncrono, como hoy
+## Modelo: asíncrono
 
 La delegación **no bloquea** el turno del padre:
 
 ```
-Thread padre (operador)                    Thread hijo (planner)
-──────────────────────                     ─────────────────────
+Agente operador                            Subagente planner
+───────────────                            ─────────────────
 turno N:
-  tool_call  delegate_to_planner ──────▶   se crea thread hijo
-  tool_result "started" (child_thread_id)    (parent_thread_id enlazado)
-  text "Planificando la misión…"             corre con SUS límites (18 it / 900 s)
-  [turno N termina → idle]                   pipeline sandbox + validate_mission
+  get_registered_objects, get_devices…
+  request_mission_plan(schema) ─────────▶  se crea sesión hija
+  ← receipt {status:"working", taskId}       recibe el briefing YA en XYZ
+  text "Generando la misión…"                5 pasos + validate_mission
+  [turno N termina]                                 │
                                                     │
-turno N+1 (disparado por EVE):   ◀──────── resultado (éxito o error)
-  subagent_result                          thread hijo queda solo-lectura
-  tool_call  show_mission_to_user
+turno N+1 (task notification):    ◀──────── resultado (éxito o error)
+  show_mission_to_user(missionPlanId)      la sesión hija queda parkeada
   text "Plan listo: 2 rutas, sin colisiones…"
 ```
 
-El operador puede seguir conversando entre el turno N y el N+1: el thread
-padre está `idle` mientras el planner trabaja.
+El operador puede seguir conversando entre el turno N y el N+1. eve además
+instruye al modelo por su cuenta a *"acknowledge that the work started without
+waiting for results"* cuando acepta una task en background.
 
-## La tool de delegación
+## La tool de delegación: `request_mission_plan`
 
-Por cada subagente registrado (`POST /v1/agents/{agentId}/subagents`), EVE
-expone automáticamente al agente padre una tool interna
-`delegate_to_<subagent_name>`. No es una tool MCP: no pasa por el GCS.
+No es la tool nativa de subagente (`{message}` y nada más), sino un
+**background workflow tool** propio —
+[`agent/tools/request_mission_plan.ts`](../agent/tools/request_mission_plan.ts):
 
-Input de la delegación:
+```ts
+defineWorkflowTool({
+  execution: "background",        // receipt inmediato, el padre sigue libre
+  inputSchema: z.object({ … }),   // el contrato que el modelo debe cumplir
+  async execute(input, ctx) {
+    "use workflow";
+    const briefing = await resolveBriefing(…);   // "use step": efectos afuera del body
+    return await ctx.agent("planner", { message: briefing });
+  },
+});
+```
 
-| Campo | Qué es |
-| ----- | ------ |
-| `task` | El encargo en lenguaje natural (equivale al `mission_strategy_description` actual: intención, framing, viewpoints, altitud, constraints). |
-| `context_files` | Datos estructurados que EVE **materializa como archivos** en el sandbox del hijo (`/workspace/data/mission_input.json`), sin pasar por el contexto del modelo. Es el reemplazo directo de los `contextParams` de `subAgentRegistry` — mismo objetivo: datos que el modelo no puede corromper. |
+Por qué así y no la tool nativa: **el schema es el contrato**. La tool nativa
+acepta un `message` de texto libre, y nada obliga al modelo a incluir los datos
+correctos. Con `inputSchema` el modelo ve los campos y eve rechaza la llamada
+malformada — igual que el `requestMissionPlanSchema` del mcp_server.
 
-El `tool_result` inmediato solo confirma el arranque:
-`{ "status": "started", "subagent_thread_id": "thr_child_1" }`. El thread hijo
-es consultable por `GET /threads/{childId}` y `GET /threads/{childId}/messages`
-(la UI puede mostrar el progreso del planner en vivo con eso).
+| Campo | Qué lleva |
+| ----- | --------- |
+| `user_request` | La intención del usuario, en sus palabras. |
+| `mission_strategy` | `simple` \| `circular` \| `detailed` \| `custom`. |
+| `mission_strategy_description` | El briefing operacional completo, terminando con el bloque `MISSION PARAMETERS` verbatim. |
+| `targets` / `targets_length` | Los elementos a inspeccionar (`id`, `name`, `type`, `group`) y su cuenta declarada, que debe coincidir. |
+| `selected_devices` | Solo los drones que van a volar (`id`, `name`, `category`, `battery_level`). |
 
-## El resultado: mensaje `subagent_result`
+**Nada de coordenadas.** El modelo pasa ids y nombres; el paso
+`resolveBriefing` llama a `POST /missions/convert/geodetic-to-xyz` del GCS, que:
 
-Cuando el hijo termina —éxito, error o timeout— EVE inyecta en el thread padre
-un mensaje `subagent_result` y dispara un turno nuevo para que el padre lo
-procese. Semántica heredada 1:1 de `SubAgentManager.injectSubAgentResponse`:
+1. Resuelve cada drone contra la DB por nombre y cruza `id` + `category`.
+2. Resuelve cada target contra el catálogo por `id` y cruza name/group/type.
+3. Calcula el origen local y convierte todo a ENU/XYZ.
+4. Resuelve obstáculos del catálogo y calcula los boundaries de la misión.
+5. Rechaza la misión si algún drone queda más lejos del límite de todo target.
 
-1. **Se añade, nunca se reescribe.** El par tool_call/tool_result de la
-   delegación cerró en el turno N; el resultado llega como mensaje NUEVO.
-   El historial es inmutable.
-2. **`call_id` empareja resultado con delegación.** El `subagent_result` lleva
-   el `call_id` del `tool_call` de delegación original — la UI reconstruye el
-   hilo sin heurísticas, aunque hayan pasado turnos en el medio.
-3. **El payload nunca lleva la misión.** El plan queda persistido en el GCS
-   (tabla `MissionPlan`, vía `submit_mission_plan`); el resultado solo lleva el
-   `missionPlanId`. Mismo convenio que documentan los perfiles actuales.
-4. **La entrega es garantizada.** Si el padre está `running` cuando el hijo
-   termina, EVE retiene el resultado y lo entrega al volver a `idle`. El `409`
-   es el contrato con clientes externos; la inyección interna nunca pierde el
-   resultado (hoy: `processMessage` encolando detrás del lock del padre).
+Es el **único punto donde lo que el modelo afirma se contrasta con los datos
+reales**: un id inventado se rechaza acá, y el error vuelve al padre, que sí
+tiene las tools para corregirlo. El briefing XYZ resultante nunca pasa por el
+contexto del padre — se arma dentro del executor y va directo al subagente, con
+las secciones (`## global_origin_coordinates`, `## Elements to Inspect`,
+`## obstacles Information`, `## boundaries`) codificadas en TOON, que es el
+formato que el Step 1 del planner espera leer.
 
-Forma del mensaje en el historial (ejemplo completo con la secuencia de
-delegación: [`examples/threads/delegation_sequence.json`](../examples/threads/delegation_sequence.json)):
+Ojo con un matiz del modo background: la validación de **schema** (campos
+faltantes o mal tipados) rechaza al instante, pero las validaciones
+**semánticas** —`targets_length` que no cuadra, un id que no existe— ocurren
+dentro del executor y llegan como *fallo de la task*, no como rechazo inmediato
+de la tool.
+
+## El resultado
+
+Cuando el planner termina —éxito, error o timeout— eve despierta al padre con
+una **task notification** y le da un turno nuevo para procesarla. La semántica
+que heredamos de `SubAgentManager.injectSubAgentResponse` se conserva:
+
+1. **Se añade, nunca se reescribe.** El par tool_call/receipt de la delegación
+   cerró en el turno N; el resultado llega después, en un turno nuevo. El
+   historial es inmutable.
+2. **El payload nunca lleva la misión.** El plan queda persistido en el GCS
+   (tabla `MissionPlan`, vía `validate_mission`); el resultado solo lleva el
+   `missionPlanId`, que es el único handle al plan.
+3. **La entrega es garantizada.** eve gestiona la cola de notificaciones: si el
+   padre está ocupado cuando el hijo termina, el resultado espera. Además
+   agrupa resultados de tasks lanzadas en el mismo turno
+   (*completion batching*), así N planners en vuelo despiertan al padre una vez.
+
+El planner cierra su turno escribiendo este JSON y nada más después
+(ver "REPORTING TO THE PARENT" en sus instructions):
 
 ```json
 {
-  "role": "user",
-  "type": "subagent_result",
-  "content": "{\"status\":\"valid\",\"description\":\"Mission plan generated and validated\",\"missionPlanId\":42,\"validationReport\":\"no collisions\",\"totalCollisions\":0}",
-  "call_id": "call_07",
-  "subagent": "eve-gcs-planner",
-  "timestamp": "2026-09-11T10:12:40Z"
+  "status": "valid",
+  "description": "Mission plan generated and validated",
+  "missionPlanId": 42,
+  "validationReport": "no collisions",
+  "totalCollisions": 0
 }
 ```
 
-- `role: "user"` por la misma razón que en `messageProjection.js`: es el único
-  rol que todo proveedor replica verbatim al modelo. La UI no debe renderizar
-  por rol acá: **`type: "subagent_result"` es la clave de renderizado**, y
-  `subagent` identifica quién lo produjo.
-- `content` es un JSON string `{ status, description, ...payload }` con
-  `status ∈ valid | error | incomplete`. Un planner que falla o agota sus
-  límites produce `status: "error"` — el padre decide si reintenta la
-  delegación o informa al operador.
+`status` es `valid` o `failed` (agotó `MAX_VALIDATION_ITERATIONS` y cerró con
+`is_final_attempt: true`). En ambos casos el plan está guardado y es mostrable;
+en `failed` el operador debe saber que tiene conflictos sin resolver.
 
-## Cómo se entera el cliente
+## Seguir el progreso del planner
 
-El GCS no recibe push en este contrato mínimo: consulta
-`GET /threads/{threadId}/messages?after=<timestamp>` (parámetro incremental
-sobre el endpoint de historial) tras ver `idle` en el estado, o en su ciclo
-normal de refresco. Un canal de notificaciones (webhook/SSE de EVE) queda
-explícitamente fuera de esta fase; si se agrega, no cambia este contrato —
-solo elimina el polling.
+El stream del padre lleva los eventos de control `subagent.called` y
+`subagent.completed`. Para ver el detalle de lo que hace el planner —sus 5
+pasos, sus llamadas al validador— se lee
+`subagent.called.data.childSessionId` y se abre
+`GET /eve/v1/session/:childSessionId/stream`. La UI del GCS puede mostrar la
+planificación en vivo con eso, sin tocar el thread del operador.

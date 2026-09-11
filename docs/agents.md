@@ -1,57 +1,67 @@
 # Agentes y subagentes
 
-Define la topología de agentes del sistema y sus payloads de creación.
+Define la topología de agentes del sistema y dónde vive cada pieza.
 
 ## Decisiones de arquitectura
 
-1. **Un agente EVE fijo y reutilizable.** Se crea una sola vez y atiende todas
-   las conversaciones del GCS; la separación entre conversaciones la dan los
-   threads (ver [conversation.md](conversation.md)), no agentes efímeros.
-2. **Los perfiles son subagentes reales, con tools propias.** `default` y
-   `planner` existen hoy en `multiuav_gcs` como perfiles markdown
+1. **Un agente raíz fijo.** En eve el agente *es* el directorio `agent/`: se
+   compila y se deploya, no se crea por API. Atiende todas las conversaciones
+   del GCS; la separación entre conversaciones la dan las sesiones.
+2. **Los perfiles son subagentes declarados, con tools propias.** `default` y
+   `planner` existen en `multiuav_gcs` como perfiles markdown
    (`server/models/chat/agents/*.md`, con frontmatter `allowedTools` y
-   `capability`). En EVE se implementan como subagentes con instrucciones y
-   tools propias — no como metadata suelta sobre un agente genérico.
-3. **Un sandbox por conversación**, compartido por el agente y sus subagentes
-   dentro del mismo thread, persistente mientras el thread esté activo. Cada
-   agente puede traer su sandbox preconfigurado, con fallback a uno default
-   (ver [sandbox.md](sandbox.md)).
+   `capability`). Acá `default` es el agente raíz y `planner` un subagente bajo
+   `agent/subagents/planner/`.
+3. **Aislamiento total del subagente.** Un subagente declarado **no hereda nada**
+   del raíz: ni instructions, ni tools, ni connections, ni sandbox. Lo que
+   necesita, lo declara en su propio directorio. Eso es lo que hace que la
+   separación de permisos sea real y no una convención.
 
-## Crear el agente principal
+## El agente raíz (operador)
 
-```
-POST /v1/agents
-```
+| Pieza | Archivo |
+| ----- | ------- |
+| Modelo | [`agent/agent.ts`](../agent/agent.ts) — provider directo (Gemini u OpenAI según la API key) |
+| System prompt | [`agent/instructions.md`](../agent/instructions.md) — portado de `default.md` |
+| Tools del GCS | [`agent/connections/multiuav-gcs.ts`](../agent/connections/multiuav-gcs.ts) |
+| Delegación | [`agent/tools/request_mission_plan.ts`](../agent/tools/request_mission_plan.ts) |
+| Canal HTTP | [`agent/channels/eve.ts`](../agent/channels/eve.ts) |
 
-Body: [`examples/agents/agent_payload.json`](../examples/agents/agent_payload.json)
+Atiende al operador, ejecuta tools de vuelo directas (con aprobación humana en
+las que mandan a los UAVs) y delega la planificación.
 
-El agente principal es el equivalente del perfil `default` de `multiuav_gcs`:
-atiende al operador, ejecuta tools de vuelo directas y delega la planificación
-de misiones en el subagente `planner`.
+## El subagente `planner`
 
-## Crear subagentes
+| Pieza | Archivo |
+| ----- | ------- |
+| Config + `description` | [`agent/subagents/planner/agent.ts`](../agent/subagents/planner/agent.ts) |
+| System prompt | [`agent/subagents/planner/instructions.md`](../agent/subagents/planner/instructions.md) — portado de `planner.md` |
+| Sus tools | [`agent/subagents/planner/connections/multiuav-gcs.ts`](../agent/subagents/planner/connections/multiuav-gcs.ts) |
 
-```
-POST /v1/agents/{agentId}/subagents
-```
+Dos detalles que impone eve:
 
-| Subagente | Payload | Rol (espejo en multiuav_gcs) |
-| --------- | ------- | ---------------------------- |
-| `planner` | [`examples/agents/subagent_planner_payload.json`](../examples/agents/subagent_planner_payload.json) | Perfil `planner`: construye y valida planes de misión. Tarea de razonamiento pesado → modelo de mayor capacidad. |
+- **`description` es obligatoria** y el compilador rechaza el subagente sin
+  ella: es lo que lee el padre para decidir si delega.
+- **El nombre del directorio es el nombre de la tool.** `agent/subagents/planner/`
+  se registra como la tool `planner`, en el mismo namespace que las tools
+  autoradas — por eso un subagente y una tool no pueden llamarse igual.
 
-Las `instructions` de los payloads son resúmenes de arranque. Los system
-prompts completos se portan desde `multiuav_gcs/server/models/chat/agents/`
-(`default.md`, `planner.md`) cuando se cierre el flujo de la Fase 5.
+Usa el modelo más capaz disponible (`capability: high` en el original): la
+planificación es geometría 3D, coste de rutas y reparación iterativa.
 
 ## Tools por agente
 
-Cada payload declara `allowed_tools` como allowlist estricta sobre el MCP real
-del GCS. El inventario completo de tools, el mapeo por agente y la
-configuración del transporte están en [tools.md](tools.md).
+| Agente | Tools |
+| ------ | ----- |
+| raíz | `get_devices`, `get_fleet_telemetry`, `get_registered_objects`, `get_element_groups`, `get_bases_with_assignments`, `show_mission_to_user`, `load_mission_to_uav`, `start_mission` + `request_mission_plan` (propia) |
+| `planner` | `mark_step_complete`, `validate_mission` |
+
+Las allowlists son disjuntas a propósito: el operador no puede planificar a mano
+y el planner no puede arrancar misiones. Inventario completo y transporte en
+[tools.md](tools.md).
 
 ## Delegación
 
-El agente principal delega en sus subagentes mediante la tool nativa
-`delegate_to_<subagente>`; el resultado vuelve al thread padre como mensaje
-`subagent_result` asíncrono. Contrato completo en
-[delegation.md](delegation.md).
+El raíz delega con `request_mission_plan`, un background workflow tool que
+valida y convierte el briefing antes de invocar al `planner`. Contrato completo
+en [delegation.md](delegation.md).
