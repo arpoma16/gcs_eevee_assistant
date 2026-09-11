@@ -1,0 +1,49 @@
+{
+  "thread_id": "thr_8f2c1a",
+  "turn_id": "b7e1c9d4-2f3a-4c8e-9d16-5a0f8b2e4c71",
+  "status": "idle",
+  "messages": [
+    {
+      "role": "user",
+      "type": "text",
+      "content": "Despegá el dron 1 a 10 metros y esperá confirmación.",
+      "call_id": null,
+      "timestamp": "2026-09-11T10:04:58Z"
+    },
+    {
+      "role": "assistant",
+      "type": "tool_call",
+      "content": "Tool call: get_devices",
+      "call_id": "call_01",
+      "timestamp": "2026-09-11T10:05:00Z"
+    },
+    {
+      "role": "tool",
+      "type": "tool_result",
+      "content": "{\"devices\":[{\"id\":1,\"status\":\"armed\",\"battery\":0.92}]}",
+      "call_id": "call_01",
+      "timestamp": "2026-09-11T10:05:01Z"
+    },
+    {
+      "role": "assistant",
+      "type": "tool_call",
+      "content": "Tool call: takeoff",
+      "call_id": "call_02",
+      "timestamp": "2026-09-11T10:05:02Z"
+    },
+    {
+      "role": "tool",
+      "type": "tool_result",
+      "content": "{\"status\":\"ok\",\"device_id\":1,\"target_altitude\":10}",
+      "call_id": "call_02",
+      "timestamp": "2026-09-11T10:05:07Z"
+    },
+    {
+      "role": "assistant",
+      "type": "text",
+      "content": "Dron 1 despegado, ascendiendo a 10 m (batería 92 %). Aviso cuando alcance la altitud objetivo.",
+      "call_id": null,
+      "timestamp": "2026-09-11T10:05:08Z"
+    }
+  ]
+}

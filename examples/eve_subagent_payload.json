@@ -1,9 +1,0 @@
-{
-  "name": "eevee-python-subagent",
-  "description": "Subagente para ejecutar scripts Python en sandbox",
-  "model": "gpt-4.1-mini",
-  "instructions": "Ejecuta scripts Python y reporta resultados.",
-  "config": {
-    "sandbox_config_path": "/home/runner/work/gcs_eevee_assistant/gcs_eevee_assistant/examples/eve_sandbox_mcp_config.json"
-  }
-}

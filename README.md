@@ -1,27 +1,49 @@
 # gcs_eevee_assistant
 
-Implementación base para trabajar con EVE (Client API) con:
+Especificación e implementación de la integración entre **EVE** (plataforma de
+agentes) y el GCS multi-UAV (`multiuav_gcs`). EVE reemplaza al orquestador de
+chat actual del GCS (`chat.js` + `subAgentManager.js` + `mcpClient.js`):
+threads, loop de tools, subagentes y sandbox pasan a vivir en EVE, y el GCS
+queda como cliente de su API.
 
-- `curl` para estado, creación de agentes y subagentes.
-- Configuración de sandbox para ejecutar scripts de Python.
-- Ejemplo de integración de herramientas vía MCP server.
+## Documentación
+
+Cada documento cubre una sola responsabilidad:
+
+| Documento | Contenido |
+| --------- | --------- |
+| [`docs/setup.md`](docs/setup.md) | Variables de entorno, autenticación y convenciones. |
+| [`docs/agents.md`](docs/agents.md) | Agente principal fijo y subagentes (`planner`). |
+| [`docs/conversation.md`](docs/conversation.md) | Contrato de threads y mensajes: endpoints, esquema normalizado, concurrencia (`409`). |
 
 ## Estructura
 
-- `/docs/eve_implementation.md`: guía completa en español.
-- `/examples/eve_api_curl.sh`: comandos `curl` parametrizados.
-- `/examples/eve_agent_payload.json`: payload de ejemplo para crear un agente.
-- `/examples/eve_subagent_payload.json`: payload de ejemplo para crear un subagente.
-- `/examples/eve_sandbox_mcp_config.json`: sandbox + MCP server.
-- `/scripts/hello_from_sandbox.py`: script de Python para ejecutar en sandbox.
+```
+docs/                       Especificación, un archivo por responsabilidad
+examples/
+  agents/                   Payloads de creación de agente y subagentes
+  threads/                  Payloads y respuestas del contrato de conversación
+  mcp/                      Configuración de sandbox + servidores MCP
+scripts/
+  eve_api_curl.sh           Flujo completo ejecutable (incluye reintento ante 409)
+  hello_from_sandbox.py     Script de prueba del sandbox
+```
 
 ## Uso rápido
 
 ```bash
-chmod +x /home/runner/work/gcs_eevee_assistant/gcs_eevee_assistant/examples/eve_api_curl.sh
-EVE_BASE_URL="https://api.eve.dev" \
-EVE_API_KEY="tu_api_key" \
-/home/runner/work/gcs_eevee_assistant/gcs_eevee_assistant/examples/eve_api_curl.sh
+export EVE_BASE_URL="https://<host-de-tu-tenant-eve>"
+export EVE_API_KEY="<api-key>"
+./scripts/eve_api_curl.sh
 ```
 
-> Nota: ajusta rutas/endpoints finales según tu versión de EVE si difieren de la guía oficial.
+## Estado del proyecto
+
+| Fase | Alcance | Estado |
+| ---- | ------- | ------ |
+| 1 | Contrato de conversación (threads, mensajes, 409) | Hecho |
+| 2 | Tool-calling contra el MCP real del GCS (`allowed_tools` por subagente) | Pendiente |
+| 3 | Sandbox Python con caso de uso real | Pendiente |
+| 4 | Ciclo de vida y resiliencia (timeouts, límites de iteración) | Pendiente |
+| 5 | Resultado del subagente hacia el thread padre | Pendiente |
+| 6 | Consolidación final | Pendiente |

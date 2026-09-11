@@ -1,0 +1,7 @@
+{
+  "error": "thread_busy",
+  "thread_id": "thr_8f2c1a",
+  "status": "running",
+  "retry_after": 5,
+  "detail": "El thread tiene un turno en ejecución. Reintentá después de retry_after segundos."
+}
