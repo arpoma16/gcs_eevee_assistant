@@ -15,6 +15,8 @@
     "typecheck": "tsc"
   },
   "dependencies": {
+    "@ai-sdk/google": "^4.0.67",
+    "@ai-sdk/openai": "^4.0.65",
     "@vercel/connect": "1.0.0",
     "ai": "^7.0.93",
     "eve": "^0.53.1",
@@ -27,5 +29,4 @@
   "engines": {
     "node": "24.x"
   }
-
 }

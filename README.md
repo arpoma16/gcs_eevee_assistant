@@ -49,10 +49,27 @@ scripts/
 
 ## Uso rápido
 
+Requisitos: Node 24 (`nvm use 24`) y una API key de Gemini u OpenAI.
+
 ```bash
-export EVE_BASE_URL="https://<host-de-tu-tenant-eve>"
-export EVE_API_KEY="<api-key>"
-./scripts/eve_api_curl.sh
+# 1. Crear .env en la raíz con UNA de las dos keys (Gemini tiene prioridad):
+#    GOOGLE_GENERATIVE_AI_API_KEY=...   (https://aistudio.google.com/apikey)
+#    OPENAI_API_KEY=...                 (https://platform.openai.com/api-keys)
+#    EVE_MODEL=gemini-2.5-pro           (opcional; defaults: gemini-2.5-flash / gpt-5.1)
+
+# 2. Instalar y correr
+nvm use 24
+npm install
+npm run dev          # REPL interactivo en la terminal
+
+# Servidor HTTP sin UI (lo que consumirá el GCS):
+npm exec -- eve dev --no-ui         # http://127.0.0.1:2000
+#   POST /eve/v1/session                    → crea sesión y manda el primer mensaje
+#   GET  /eve/v1/session/:id/stream         → respuesta en streaming
+#   POST /eve/v1/session/:id                → mensajes siguientes
+
+# Deploy local (self-hosted, sin Vercel):
+npm run build && npm run start
 ```
 
 ## Estado del proyecto
