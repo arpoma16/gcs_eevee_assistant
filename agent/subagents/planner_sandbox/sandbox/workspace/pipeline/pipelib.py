@@ -2,9 +2,12 @@
 
 import json
 import math
+import os
 from pathlib import Path
 
-DATA_DIR = Path("/workspace/data")
+# Dentro del sandbox siempre es /workspace/data; la variable existe para poder
+# correr el pipeline contra fixtures fuera del sandbox.
+DATA_DIR = Path(os.environ.get("MISSION_DATA_DIR", "/workspace/data"))
 
 
 def load_json(path):
@@ -33,10 +36,11 @@ def dist2(a, b):
 
 
 def yaw_towards(from_pos, to_pos):
-    """Yaw en grados hacia to_pos, convención de la plataforma: 0=Norte, 90=Este."""
+    """Yaw hacia to_pos: 0=Norte, 90=Este, en el rango [-180, 180] que exige el GCS."""
     fx, fy, _ = pos_xyz(from_pos)
     tx, ty, _ = pos_xyz(to_pos)
-    return round(math.degrees(math.atan2(tx - fx, ty - fy)) % 360.0, 1)
+    degrees = math.degrees(math.atan2(tx - fx, ty - fy))
+    return round((degrees + 180.0) % 360.0 - 180.0, 1)
 
 
 def footprint_radius(dimensions):

@@ -32,15 +32,30 @@ def order_targets(start, blocks):
     return ordered
 
 
-def order_ring(block, approach):
-    """Rota el anillo para entrar por el waypoint más cercano a `approach`."""
+def order_ring(block, approach, departure):
+    """Recorre el anillo entrando por el punto más cercano a `approach`.
+
+    La dirección (horaria o antihoraria) se elige por dónde queda la SALIDA: el
+    anillo se recorre entero igual, así que girar para el otro lado no cuesta
+    nada y deja el último punto del lado por el que hay que irse. Sin eso, la
+    ruta sale por el punto opuesto y el tramo siguiente cruza el objeto por el
+    centro — la colisión autoinfligida más común.
+    """
     waypoints = block["waypoints"]
     entry = min(
         range(len(waypoints)),
         key=lambda i: math.dist(pos_xyz(approach), pos_xyz(waypoints[i]["position"])),
     )
-    rotated = waypoints[entry:] + waypoints[:entry]
-    return [w["label"] for w in rotated]
+    forward = waypoints[entry:] + waypoints[:entry]
+    backward = [forward[0]] + list(reversed(forward[1:]))
+
+    return [
+        w["label"]
+        for w in min(
+            (forward, backward),
+            key=lambda ring: math.dist(pos_xyz(departure), pos_xyz(ring[-1]["position"])),
+        )
+    ]
 
 
 def route_for(drone_name, target_names, blocks, takeoffs, cruise_speed):
@@ -49,8 +64,13 @@ def route_for(drone_name, target_names, blocks, takeoffs, cruise_speed):
     visit_order = order_targets(takeoff["takeoff"], assigned)
 
     ordered_targets, path = [], [takeoff["takeoff"]]
-    for name in visit_order:
-        labels = order_ring(blocks[name], path[-1])
+    for index, name in enumerate(visit_order):
+        # Hacia dónde hay que irse después de este bloque: el siguiente centroide,
+        # o el punto de aterrizaje si es el último.
+        following = visit_order[index + 1 :]
+        departure = centroid(blocks[following[0]]) if following else takeoff["landing"]
+
+        labels = order_ring(blocks[name], path[-1], departure)
         by_label = {w["label"]: w["position"] for w in blocks[name]["waypoints"]}
         path.extend(by_label[label] for label in labels)
         ordered_targets.append({"target_name": name, "ordered_labels": labels})

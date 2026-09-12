@@ -4,6 +4,12 @@ import { z } from "zod";
 
 const GCS_API_URL = process.env.MUAV_API_URL ?? "http://localhost:4000/api";
 
+// Qué planner recibe el trabajo. `planner` razona la geometría; `planner_sandbox`
+// la computa con el pipeline Python de su sandbox. Mismo contrato de entrada y
+// de salida, así que se cambian entre sí sin tocar nada más.
+const PLANNER = process.env.EVE_PLANNER ?? "planner";
+const USES_PIPELINE = PLANNER === "planner_sandbox";
+
 const Identifier = z.union([z.string(), z.number()]);
 
 // The GCS resolves every target by `id` and cross-checks ONLY the optional
@@ -70,6 +76,32 @@ async function resolveBriefing(
   return body as Briefing;
 }
 
+/**
+ * Briefing for the pipeline planner: identifiers and intent only. It
+ * materializes the geometry into its own sandbox with `prepare_mission_input`,
+ * so shipping the XYZ here would only burn context on data it re-fetches.
+ */
+function formatIdentifierBriefing(
+  input: {
+    user_request: string;
+    mission_strategy: string;
+    mission_strategy_description: string;
+    targets: z.infer<typeof TargetSchema>[];
+    selected_devices: z.infer<typeof DeviceSchema>[];
+  },
+  briefing: Briefing,
+): string {
+  return `Execute the MISSION PLANNING SEQUENCE for solve the user request
+${input.user_request} using a ${input.mission_strategy} strategy following the description: ${input.mission_strategy_description}.
+
+## global_origin_coordinates
+${JSON.stringify(briefing.global_origin)}
+## targets (pass these to prepare_mission_input)
+${encode(input.targets)}
+## devices (pass these to prepare_mission_input)
+${encode(input.selected_devices)}`;
+}
+
 /** The exact section layout the planner's Step 1 reads. */
 function formatBriefing(
   input: { user_request: string; mission_strategy: string; mission_strategy_description: string },
@@ -132,9 +164,14 @@ export default defineWorkflowTool({
       );
     }
 
+    // Resolved here even when the planner re-fetches it: this is the only place
+    // a bad identifier can be reported back to whoever chose it, and the parent
+    // is the one with the tools to fix it.
     const briefing = await resolveBriefing(input.targets, input.selected_devices);
-    const result = await ctx.agent("planner", {
-      message: formatBriefing(input, briefing),
+    const result = await ctx.agent(PLANNER, {
+      message: USES_PIPELINE
+        ? formatIdentifierBriefing(input, briefing)
+        : formatBriefing(input, briefing),
       outputSchema: PLANNER_RESULT_SCHEMA,
     });
 

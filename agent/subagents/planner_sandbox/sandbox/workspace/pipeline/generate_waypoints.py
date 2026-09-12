@@ -1,10 +1,14 @@
 """Step 4 del plan de misión: generación determinista de waypoints.
 
-Lee mission_input.json + strategy_params.json y escribe step4_waypoints.json
-con la forma del esquema `Step4WaypointsSchema` de mcp_server:
+Lee mission_input.json (posiciones), collision_objects.json (geometría real de
+cada target) y strategy_params.json, y escribe step4_waypoints.json con la forma
+del esquema `Step4WaypointsSchema` de mcp_server:
 - takeoff/landing por drone (XY de la posición inicial, Z = z + takeoff_landing_alt)
 - un target_block por target: anillo de viewpoints a stand_off del footprint,
   Z por fracción de la altura del target, yaw apuntando al centro (0=Norte, 90=Este).
+
+El stand-off nunca baja de R_SAFE (footprint + safety_margin): la seguridad gana
+sobre el encuadre, igual que en la regla `standoff = max(standoff_optical, R_SAFE)`.
 """
 
 import argparse
@@ -21,11 +25,13 @@ def ring_label(index, count, angle_deg):
     return f"P{index + 1}-{round(angle_deg)}deg"
 
 
-def target_block(target, params):
-    center = target["position"]
+def target_block(obstacle, params):
+    center = obstacle["position"]
     cx, cy, cz = pos_xyz(center)
-    radius = footprint_radius(target.get("dimensions")) + float(params["stand_off"])
-    height = float(target.get("dimensions", {}).get("height", 0.0))
+    footprint = footprint_radius(obstacle.get("dimensions"))
+    r_safe = footprint + float(obstacle["safety_margin"])
+    radius = max(footprint + float(params["stand_off"]), r_safe)
+    height = float(obstacle.get("height", 0.0))
     z = round(cz + height * float(params["altitude_fraction"]), 1)
 
     count = int(params["viewpoints_per_target"])
@@ -45,7 +51,7 @@ def target_block(target, params):
                 "yaw": yaw_towards(pos, center),
             }
         )
-    return {"target_name": target["name"], "waypoints": waypoints}
+    return {"target_name": obstacle["obstacle_name"], "waypoints": waypoints}
 
 
 def takeoff_landing(drone, params):
@@ -57,16 +63,21 @@ def takeoff_landing(drone, params):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--input", default=DATA_DIR / "mission_input.json")
+    parser.add_argument("--collision-objects", default=DATA_DIR / "collision_objects.json")
     parser.add_argument("--strategy", default=DATA_DIR / "strategy_params.json")
     parser.add_argument("--output", default=DATA_DIR / "step4_waypoints.json")
     args = parser.parse_args()
 
     mission = load_json(args.input)
     params = load_json(args.strategy)
+    by_name = {o["obstacle_name"]: o for o in load_json(args.collision_objects)}
+
+    # Only inspection targets get a waypoint ring; the rest are just obstacles.
+    target_names = [t["name"] for t in mission["targets"]]
 
     step4 = {
         "takeoff_landing": [takeoff_landing(d, params) for d in mission["drones"]],
-        "target_blocks": [target_block(t, params) for t in mission["targets"]],
+        "target_blocks": [target_block(by_name[name], params) for name in target_names],
     }
     save_json(args.output, step4)
 
