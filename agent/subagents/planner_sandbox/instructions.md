@@ -109,7 +109,7 @@ No **waypoint** belongs in a caution zone. A **segment** may cross one freely, a
 
 - **`prepare_mission_input`** — resolves the briefing against the GCS and writes `/workspace/data/mission_input.json`. Always your first call.
 - **`bash`** — runs the pipeline scripts. Working directory is `/workspace`.
-- **`read_file` / `write_file`** — for the small JSON files you author yourself. Never use them to copy geometry between files; that is what the pipeline is for.
+- **`read_file` / `write_file`** — for the small JSON files you author yourself, and for the inspection pattern you write in `/workspace/patterns/`. Never use them to copy geometry between files; that is what the pipeline is for.
 - **`validate_and_persist`** — the gate. Reads the mission from the sandbox, validates it against the GCS obstacle database and persists it. Protocol in "THE VALIDATION GATE".
 
 ---
@@ -201,32 +201,34 @@ python3 pipeline/build_collision_objects.py
 
 It expands your types over every target and obstacle, and fails loudly naming any element whose type you did not cover.
 
-## STEP 2 — Spatial analysis
+## STEP 2 — Who flies what, and in what order
 
 ```bash
-python3 pipeline/spatial_analysis.py
+python3 pipeline/plan_routes.py
 ```
 
-Writes `step2_spatial_analysis.json`: per drone its 3 nearest and 3 farthest targets with measured distances, and the field's span, typical spacing and extreme pairs. `read_file` it — you need these numbers for Step 3, and they are measured, not estimated.
+This runs **before a single waypoint exists**, on purpose: the visit order follows from where the targets are, not from where the cameras will end up. Settling it first leaves every target's inspection independent of the others.
 
-**This step decides nothing.** Which drone flies which target is Step 3's call.
+It assigns each target to its nearest drone under an even-share cap, orders each route by nearest-neighbour and improves it with 2-opt, then reports the route lengths and the **makespan** — the longest single route, which is what the fleet's clock actually reads. Read that output.
 
-## STEP 3 — Assign targets to drones
-
-Yours to decide, informed by Step 2.
-
-**Objective: minimum MAKESPAN — the longest single drone route, not the sum.** Two assignments with the same total distance are not equally good; the one with the shorter longest route wins.
-
-**HARD:** every target assigned, exactly once. Balance penalties: longest/shortest ratio > MAX_ROUTE_IMBALANCE_RATIO → reassign; any drone holding > 60% of targets → redistribute; routes crossing → swap to uncross.
-
-Write `/workspace/data/step3_assignment.json`:
+**Override it only with a reason.** If the assignment is wrong for this mission — a drone you must keep free, a zone one aircraft cannot enter, a balance the script cannot see — write `/workspace/data/step3_assignment.json` and re-run it; the script keeps your assignment and only orders:
 
 ```json
 { "assignments": [ { "drone_name": "uav_1", "target_names": ["A1", "B1"] } ],
   "n_assigned": 2, "n_total": 2, "balance_ratio": 1.0 }
 ```
 
-## STEP 4 — Mission-wide parameters and waypoints
+For the measurements behind such a decision:
+
+```bash
+python3 pipeline/spatial_analysis.py
+```
+
+Writes `step2_spatial_analysis.json`: per drone its 3 nearest and 3 farthest targets, and the field's span, typical spacing and extreme pairs. Measured, not estimated.
+
+**A balance that is too perfect has a cost.** Routes of identical length put the drones at mirrored positions at identical times, and two aircraft that arrive at the same gap in the same second are a conflict the gate will report. It is fixable later with altitude separation (R.3-bis) — but if you see it, know where it came from.
+
+## STEP 3 — Mission-wide parameters and waypoints
 
 The per-type flight parameters already went into `geometry.json` in Step 1. What is left is what belongs to the mission as a whole. Write `/workspace/data/strategy_params.json`:
 
@@ -240,14 +242,11 @@ The per-type flight parameters already went into `geometry.json` in Step 1. What
 
 ### Choosing — or writing — the inspection pattern
 
-A pattern decides **the shape** of the inspection: where the viewpoints sit around (or in front of, or along) the element. `/workspace/patterns/` ships two:
+A pattern decides **the shape** of the inspection: where the viewpoints sit around — or in front of, or along — the element. `/workspace/patterns/` ships exactly one, `ring`: N points evenly around the element at one altitude, which covers SIMPLE and CIRCULAR. It is the default, used for any type that does not name another.
 
-- **`ring`** (default) — N points evenly around the element at one altitude. Covers SIMPLE and CIRCULAR.
-- **`blades`** — the three blades of a turbine, sampled root to tip in the rotor plane.
+**Everything else you write yourself.** That is what the sandbox is for, and it is the only way to express what a parameter never could: the three blades of a turbine sampled root to tip in the rotor plane, the stacked rings of a bulky structure, the boustrophedon face sweep of a slender one, the zig-zag grid of a facade. These are not one algorithm with different numbers — they are different algorithms, and which one applies depends on what the operator asked you to inspect.
 
-Declare one per type with `"pattern": "<name>"` in `geometry.json`. Omit it and you get `ring`.
-
-**When neither fits, write your own.** That is what the sandbox is for, and it is the only way to express what a parameter never could: the stacked rings of a DETAILED bulky structure, the boustrophedon face sweep of a slender one, the zig-zag grid of a facade. A pattern is one file in `/workspace/patterns/<name>.py` with one function:
+Write it to `/workspace/patterns/<name>.py` and declare it with `"pattern": "<name>"` in that type's `geometry.json` entry. One file, one function:
 
 ```python
 def viewpoints(element, params) -> [{"label": str, "local": (x, y, z), "yaw_towards": (x, y, z)}]
@@ -255,7 +254,7 @@ def viewpoints(element, params) -> [{"label": str, "local": (x, y, z), "yaw_towa
 
 It returns points in the element's **local frame** — origin at the centre of its footprint, at ground level; `+Y` the direction the element faces; `+Z` up. You describe the shape once, relative to the object; the runner instantiates it at every element's real position, rotated by that element's own yaw. **That is why one pattern serves ten turbines**: it is called once per element with that element's geometry, and the absolute coordinates are supplied from disk — you never see them and never write them.
 
-Read `patterns/ring.py` before writing one: its docstring is the full contract, and `patterns/blades.py` shows a pattern that no ring could express.
+**Read `patterns/ring.py` before writing one**: its docstring is the full contract — the exact shape of what you return, what `element` and `params` carry, and how the local frame is oriented. Anything you put in the type's `geometry.json` entry reaches your pattern, so ask for what you need there (`hub_height`, `blade_length`, `blade_count`…) and read it from `element`.
 
 Then:
 
@@ -263,16 +262,34 @@ Then:
 python3 pipeline/generate_waypoints.py
 ```
 
-It prints the pattern and the waypoint count it resolved for every target. **Read that output** — it is your check that each type got what you intended, before any of it reaches the validator.
+It prints the pattern and the waypoint count it resolved for every target. **Read that output** — it is your check that each type got what you intended.
 
-## STEP 5 — Route order and assembly
+## STEP 4 — Check each target's viewpoints, before assembling anything
 
 ```bash
-python3 pipeline/order_routes.py
+python3 pipeline/check_viewpoints.py
+```
+
+For every waypoint it measures the horizontal distance to each collision object's axis, counting it only where the two overlap in height, and reports anything sitting inside an exclusion or caution zone. It exits non-zero when a waypoint is inside an object's real geometry.
+
+Do this **now**, per target, not at the gate. A bad viewpoint caught here is one pattern to fix in isolation; the same waypoint caught by the gate costs an iteration and drags the whole mission through a repair round.
+
+**When it reports something, read it before you move anything.** A viewpoint inside an object usually means the pattern or the collision model is wrong, not that the point needs nudging — and the commonest cause is the one in Step 1: modelling a structure by its envelope when you are inspecting its parts. `--fix` pushes the offenders radially out to the safety radius, which is the right answer when the pattern is sound and a few points simply landed short:
+
+```bash
+python3 pipeline/check_viewpoints.py --target A1        # solo uno
+python3 pipeline/check_viewpoints.py --fix              # empujar los infractores
+```
+
+## STEP 5 — Assemble the mission
+
+```bash
 python3 pipeline/build_mission.py
 ```
 
-`order_routes.py` orders the target blocks per drone by nearest-neighbour over block centroids, rotates each ring so the route enters at its closest point, and reports the cost per route. `build_mission.py` assembles `mission.json` and **aborts if any target was left out or invented**.
+Follows the visit order already fixed in Step 2, and resolves what only the waypoints can answer: where each target's block is entered and left. The ring costs the same in either direction, so it is walked the way that leaves the exit on the side the next leg departs from — otherwise the route exits opposite and the next segment crosses the object through its centre.
+
+It **aborts if any target was left out or invented**, and reports each route's length and flight time.
 
 ---
 
@@ -293,7 +310,7 @@ Call `validate_and_persist` once `mission.json` exists.
 
 Triggered ONLY by a gate result with `valid: false`.
 
-**Repairs happen in the files, then you rebuild.** Edit `step4_waypoints.json` (geometry) or `step3_assignment.json` (assignment), re-run `pipeline/order_routes.py` and `pipeline/build_mission.py`, then call the gate again. Never hand-edit `mission.json`: it is generated, and your edit would be overwritten by the next build.
+**Repairs happen in the files, then you rebuild.** Edit `step4_waypoints.json` (geometry), or `step3_assignment.json` followed by `pipeline/plan_routes.py` (assignment and order), then re-run `pipeline/build_mission.py` and call the gate again. Never hand-edit `mission.json`: it is generated, and your edit would be overwritten by the next build.
 
 ## R.1 — Change log (MANDATORY, every remediation turn)
 

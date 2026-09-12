@@ -84,13 +84,14 @@ es**, y ahí empiezan los scripts.
 | Paso | Responsable | Por qué |
 | ---- | ----------- | ------- |
 | 1 — geometría y vuelo, por tipo | **modelo** → `geometry.json` | Extraer dimensiones de prosa irregular, y derivar de ellas el stand-off y la altitud que pide la estrategia. |
-| 1b — objetos de colisión | script | Expande la geometría por tipo sobre cada elemento y la une con su posición. |
-| 2 — análisis espacial | script | Distancias, spans, pares extremos: medidos, no estimados. |
-| 3 — asignación drone→targets | **modelo** → `step3_assignment.json` | Decisión contra el objetivo de makespan. |
-| 4 — parámetros de misión | **modelo** → `strategy_params.json` | Velocidad de crucero, altura de despegue, y fallbacks. |
-| 4b — patrón de inspección | **modelo** → `patterns/*.py` | Qué forma tiene la inspección, cuando no es un anillo. Solo si hace falta. |
-| 4c — waypoints | script | Instancia el patrón en cada elemento: rota, traslada, apunta la cámara, recorta Z. |
-| 5 — orden de ruta y ensamblado | script | Vecino más cercano, dirección de giro y costo. |
+| 1b — objetos de colisión | `build_collision_objects.py` | Expande la geometría por tipo sobre cada elemento y la une con su posición. |
+| 2 — asignación y orden | `plan_routes.py` | Reparto por cercanía con tope de carga, vecino más cercano y 2-opt, contra el makespan. |
+| 2b — medidas del campo | `spatial_analysis.py` | Distancias, spans, pares extremos, para cuando el modelo quiera decidir el reparto él. |
+| 3 — parámetros de misión | **modelo** → `strategy_params.json` | Velocidad de crucero, altura de despegue, y fallbacks. |
+| 3b — patrón de inspección | **modelo** → `patterns/*.py` | Qué forma tiene la inspección. Solo si el anillo no alcanza. |
+| 3c — waypoints | `generate_waypoints.py` | Instancia el patrón en cada elemento: rota, traslada, apunta la cámara, recorta Z. |
+| 4 — revisión por target | `check_viewpoints.py` | Cada punto contra cada objeto, aislado y barato, antes de ensamblar. |
+| 5 — ensamblado | `build_mission.py` | Entrada y salida de cada anillo, y la misión completa. |
 
 **Una entrada por TIPO, no por elemento.** Las características viven en el
 grupo, así que dieciséis turbinas comparten una geometría: el modelo escribe una
@@ -136,14 +137,16 @@ al objeto, y se aplica a los diez aerogeneradores** pasándole a cada llamada la
 posición absoluta leída del archivo. El patrón nunca ve una coordenada del
 mundo, así que tampoco puede equivocarla.
 
-Vienen dos: `ring` (el default) y `blades` (las tres palas muestreadas de raíz a
-punta en el plano del rotor). El modelo escribe los que falten — eso es lo que
-justifica tener un sandbox y no solo un archivo de configuración.
+Viene uno solo: `ring`, el default, que además es el **contrato documentado** —
+su docstring explica la firma y el marco local. Los demás los escribe el modelo
+para la inspección que le pidieron, y por eso no se versionan: un patrón de
+palas, de fachada o de barrido de caras depende de qué te pidieron mirar. Eso es
+lo que justifica tener un sandbox y no solo un archivo de configuración.
 
 ### El modelo de colisión depende de qué inspeccionás
 
-Al escribir `blades` apareció una tensión de dominio que conviene conocer,
-porque no es un bug sino una decisión:
+Probando un patrón de palas apareció una tensión de dominio que conviene
+conocer, porque no es un bug sino una decisión:
 
 Una turbina vista desde afuera es un cilindro del ancho del rotor barrido — nada
 puede cruzar ese disco. **La misma turbina inspeccionada en sus palas es una
@@ -163,10 +166,10 @@ step3_assignment.json  qué drone vuela qué target               (los escribe e
         │
         ▼
 pipeline/build_collision_objects.py → collision_objects.json
-pipeline/spatial_analysis.py        → step2_spatial_analysis.json
+pipeline/plan_routes.py             → route_plan.json   (quién vuela qué, y en qué orden)
 pipeline/generate_waypoints.py      → step4_waypoints.json
-pipeline/order_routes.py            → step5_route.json
-pipeline/build_mission.py           → mission.json   (aborta si falta o sobra un target)
+pipeline/check_viewpoints.py        → revisa cada target por separado, --fix los aleja
+pipeline/build_mission.py           → mission.json      (aborta si falta o sobra un target)
         │
         ▼
 validate_and_persist           lee los archivos, valida contra el GCS y persiste
@@ -183,18 +186,26 @@ D=/tmp/mission && mkdir -p $D
 for f in examples/pipeline/*.example.json; do cp "$f" "$D/$(basename ${f%.example.json}).json"; done
 cd agent/subagents/planner_sandbox/sandbox/workspace/pipeline
 MISSION_DATA_DIR=$D python3 build_collision_objects.py
-MISSION_DATA_DIR=$D python3 spatial_analysis.py
+MISSION_DATA_DIR=$D python3 plan_routes.py
 MISSION_DATA_DIR=$D python3 generate_waypoints.py
-MISSION_DATA_DIR=$D python3 order_routes.py
+MISSION_DATA_DIR=$D python3 check_viewpoints.py
 MISSION_DATA_DIR=$D python3 build_mission.py
 ```
 
 El `mission.json` resultante se puede mandar al validador real del GCS
-(`POST /api/missions/validate`) sin pasar por el agente. Así se encontraron dos
-bugs que no se veían de otra forma: yaw fuera del rango [-180, 180] que exige el
-esquema, y rutas que salían de un anillo por el punto opuesto y cruzaban el
-objeto **por su centro** — el `order_routes.py` elegía el punto de entrada pero
-no el de salida.
+(`POST /api/missions/validate`) sin pasar por el agente. Así se encontraron tres
+cosas que no se veían de otra forma:
+
+- **Yaw fuera de rango**: los waypoints salían en 0–360 y el esquema exige
+  [-180, 180].
+- **Colisión autoinfligida**: la ruta salía de un anillo por el punto opuesto y
+  el tramo siguiente cruzaba el objeto **por su centro**. Se elegía el punto de
+  entrada pero no el de salida.
+- **El balance perfecto genera conflictos entre drones**: rutas de largo
+  idéntico ponen a los drones en posiciones espejadas en tiempos idénticos. Con
+  dos turbinas a 100 m y anillos de radio 43, los dos aparatos se cruzan por el
+  hueco del medio **en el mismo segundo**, a 3 m. Se repara con separación de
+  altitud (R.3-bis), pero conviene saber que lo causa optimizar el makespan.
 
 ## Smoke test
 
