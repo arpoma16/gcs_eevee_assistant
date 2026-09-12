@@ -88,7 +88,8 @@ es**, y ahí empiezan los scripts.
 | 2 — análisis espacial | script | Distancias, spans, pares extremos: medidos, no estimados. |
 | 3 — asignación drone→targets | **modelo** → `step3_assignment.json` | Decisión contra el objetivo de makespan. |
 | 4 — parámetros de misión | **modelo** → `strategy_params.json` | Velocidad de crucero, altura de despegue, y fallbacks. |
-| 4b — waypoints | script | Trigonometría: anillos, yaw 0=Norte/90=Este, clamps de Z. |
+| 4b — patrón de inspección | **modelo** → `patterns/*.py` | Qué forma tiene la inspección, cuando no es un anillo. Solo si hace falta. |
+| 4c — waypoints | script | Instancia el patrón en cada elemento: rota, traslada, apunta la cámara, recorta Z. |
 | 5 — orden de ruta y ensamblado | script | Vecino más cercano, dirección de giro y costo. |
 
 **Una entrada por TIPO, no por elemento.** Las características viven en el
@@ -109,6 +110,48 @@ scripts derivan la del vuelo.** El modelo escribe distancias y ángulos —
 `radius`, `height`, `yaw`, `stand_off`— porque salen de leer una descripción.
 Lo que no escribe nunca es una **posición**: ninguna coordenada de waypoint, de
 ruta o de obstáculo pasa por él.
+
+## Patrones: cuando un parámetro no alcanza
+
+Un anillo de N puntos cubre SIMPLE y CIRCULAR. No cubre nada más: los anillos
+apilados de una estructura voluminosa, el barrido boustrophedon de una esbelta,
+la grilla zig-zag de una fachada o las palas de un aerogenerador **no son el
+mismo algoritmo con otros números** — son algoritmos distintos. Ningún script
+parametrizado los expresa a todos.
+
+Por eso `generate_waypoints.py` no genera la forma: la **instancia**. La forma
+la aporta un patrón, un módulo en `/workspace/patterns/` con una función:
+
+```python
+def viewpoints(element, params) -> [{"label", "local": (x, y, z), "yaw_towards"}]
+```
+
+que devuelve los puntos en el **marco local del elemento** — origen en el centro
+de su huella a nivel del suelo, `+Y` hacia donde mira, `+Z` arriba. El runner lo
+rota por el yaw de cada elemento, lo traslada a su posición real, apunta la
+cámara y recorta la altitud.
+
+Ahí está la propiedad que buscábamos: **la forma se describe una vez, relativa
+al objeto, y se aplica a los diez aerogeneradores** pasándole a cada llamada la
+posición absoluta leída del archivo. El patrón nunca ve una coordenada del
+mundo, así que tampoco puede equivocarla.
+
+Vienen dos: `ring` (el default) y `blades` (las tres palas muestreadas de raíz a
+punta en el plano del rotor). El modelo escribe los que falten — eso es lo que
+justifica tener un sandbox y no solo un archivo de configuración.
+
+### El modelo de colisión depende de qué inspeccionás
+
+Al escribir `blades` apareció una tensión de dominio que conviene conocer,
+porque no es un bug sino una decisión:
+
+Una turbina vista desde afuera es un cilindro del ancho del rotor barrido — nada
+puede cruzar ese disco. **La misma turbina inspeccionada en sus palas es una
+torre de pocos metros**: el rotor es un disco delgado, y un dron a 12 m de su
+cara está en aire libre. Modelada como rotor, los waypoints de palas dieron
+**76 colisiones**; modelada como torre, los mismos waypoints dieron **0**. Le
+estás diciendo al validador dónde hay materia sólida, y si le decís que el dron
+está adentro del objeto, te rechaza la misión entera — con razón.
 
 ```
 prepare_mission_input          → origin/devices/targets/obstacles/element_types.json

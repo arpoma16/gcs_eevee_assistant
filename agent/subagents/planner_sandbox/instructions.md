@@ -168,17 +168,25 @@ Write `/workspace/data/geometry.json`. Each type carries **what it is** and **ho
 
 **What it is** — read from the description:
 
-- `radius` for circles, `width`/`length` for rectangles: the element's REAL footprint, before any margin. For a wind turbine the swept rotor is the footprint, not the tower.
+- `radius` for circles, `width`/`length` for rectangles: the element's REAL footprint, before any margin.
 - `height`: the topmost point a drone could hit.
+
+**Model the solid you must not hit, and that depends on what you are inspecting.** A wind turbine inspected from the outside is a cylinder as wide as its swept rotor — nothing may cross that disc. The same turbine inspected *on its blades* is a tower a few metres across: the rotor is a thin disc, not a solid volume, and a drone hovering in front of it is in open air. Model it as the rotor and every blade viewpoint is a collision, because you told the validator the drone is standing inside the object. Get this wrong and the gate rejects the whole mission; get it right and the same waypoints pass untouched.
 - `yaw`: the element's orientation in degrees, 0 = North, 90 = East. Ignored for circles.
 - `safety_margin`: CLEARANCE_MARGIN. The extra clearance only, never the element's own size.
 
 **How to fly around it** — derived from the strategy and the dimensions you just read:
 
-- `stand_off`: clearance beyond the footprint, from the framing rule
-  `standoff_optical = frame_extent / (2 × tan(camera_fov / 2))`, minus the footprint radius (the pipeline adds it back). `frame_extent` is the dimension the strategy says one frame must span — the rotor diameter for a turbine, the facade width for a building. Read `camera_fov` from MISSION PARAMETERS; never assume 60°. The pipeline raises the result to R_SAFE if it comes out smaller: safety wins over framing.
+- `stand_off`: how far the camera sits from what it is framing, from the rule
+  `standoff_optical = frame_extent / (2 × tan(camera_fov / 2))`. `frame_extent` is the dimension the strategy says one frame must span — the rotor diameter for a whole turbine, the facade width for a building, one blade section for a blade sweep. Read `camera_fov` from MISSION PARAMETERS; never assume 60°.
 - `altitude_fraction`: where on the element's height the ring sits, as a fraction. `0.5` is the vertical midpoint; for a turbine, `hub_height / max_tip_height` puts it at the hub. The pipeline clamps the result to [MIN_INSPECTION_ALT, MAX_ALTITUDE].
 - `viewpoints`: how many points ring the element — what the strategy asks for (SIMPLE 1, CIRCULAR 4, DETAILED more).
+- `pattern`: which inspection pattern to apply, when a ring is not the right shape. See Step 4.
+
+Anything else you add to a type's entry travels through to its pattern, so a
+pattern of your own can ask for whatever it needs (`hub_height`,
+`blade_length`, `blade_count`…). Put those numbers here too: they come from the
+same description.
 
 **This is per TYPE for a reason.** A mission with turbines and buildings needs a different stand-off for each: the framing rule depends on the element's own dimensions, so one global number is wrong for at least one of them. Any of the three may be omitted, and then the global value from `strategy_params.json` applies.
 
@@ -230,13 +238,32 @@ The per-type flight parameters already went into `geometry.json` in Step 1. What
 - `cruise_speed`, `takeoff_landing_alt`: from MISSION PARAMETERS and §1.
 - The other three are **fallbacks**, used only for a type whose `geometry.json` entry omits them. Give them sane values; they should rarely be the ones that apply.
 
+### Choosing — or writing — the inspection pattern
+
+A pattern decides **the shape** of the inspection: where the viewpoints sit around (or in front of, or along) the element. `/workspace/patterns/` ships two:
+
+- **`ring`** (default) — N points evenly around the element at one altitude. Covers SIMPLE and CIRCULAR.
+- **`blades`** — the three blades of a turbine, sampled root to tip in the rotor plane.
+
+Declare one per type with `"pattern": "<name>"` in `geometry.json`. Omit it and you get `ring`.
+
+**When neither fits, write your own.** That is what the sandbox is for, and it is the only way to express what a parameter never could: the stacked rings of a DETAILED bulky structure, the boustrophedon face sweep of a slender one, the zig-zag grid of a facade. A pattern is one file in `/workspace/patterns/<name>.py` with one function:
+
+```python
+def viewpoints(element, params) -> [{"label": str, "local": (x, y, z), "yaw_towards": (x, y, z)}]
+```
+
+It returns points in the element's **local frame** — origin at the centre of its footprint, at ground level; `+Y` the direction the element faces; `+Z` up. You describe the shape once, relative to the object; the runner instantiates it at every element's real position, rotated by that element's own yaw. **That is why one pattern serves ten turbines**: it is called once per element with that element's geometry, and the absolute coordinates are supplied from disk — you never see them and never write them.
+
+Read `patterns/ring.py` before writing one: its docstring is the full contract, and `patterns/blades.py` shows a pattern that no ring could express.
+
 Then:
 
 ```bash
 python3 pipeline/generate_waypoints.py
 ```
 
-It prints the stand-off, altitude fraction and viewpoint count it resolved for every target. **Read that output** — it is your check that each type got the parameters you intended, before any of it reaches the validator.
+It prints the pattern and the waypoint count it resolved for every target. **Read that output** — it is your check that each type got what you intended, before any of it reaches the validator.
 
 ## STEP 5 — Route order and assembly
 
