@@ -48,7 +48,8 @@ def build_route(plan_route, blocks, takeoffs, params):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--input", default=DATA_DIR / "mission_input.json")
+    parser.add_argument("--targets", default=DATA_DIR / "targets.json")
+    parser.add_argument("--origin", default=DATA_DIR / "origin.json")
     parser.add_argument("--waypoints", default=DATA_DIR / "step4_waypoints.json")
     parser.add_argument("--routes", default=DATA_DIR / "step5_route.json")
     parser.add_argument("--strategy", default=DATA_DIR / "strategy_params.json")
@@ -56,7 +57,8 @@ def main():
     parser.add_argument("--description", default="Multi-UAV inspection mission")
     args = parser.parse_args()
 
-    mission_input = load_json(args.input)
+    targets = load_json(args.targets)
+    origin = load_json(args.origin)
     step4 = load_json(args.waypoints)
     step5 = load_json(args.routes)
     params = load_json(args.strategy)
@@ -64,7 +66,7 @@ def main():
     blocks = {b["target_name"]: b for b in step4["target_blocks"]}
     takeoffs = {t["drone_name"]: t for t in step4["takeoff_landing"]}
 
-    expected = {t["name"] for t in mission_input["targets"]}
+    expected = {t["name"] for t in targets}
     covered = {o["target_name"] for r in step5["routes"] for o in r["ordered_targets"]}
     if expected - covered:
         sys.exit(f"Targets sin asignar: {', '.join(sorted(expected - covered))}. Ningún plan puede omitir un target.")
@@ -73,7 +75,7 @@ def main():
 
     mission = {
         "description": args.description,
-        "global_origin": mission_input["global_origin"],
+        "global_origin": origin["global_origin"],
         "route": [build_route(r, blocks, takeoffs, params) for r in step5["routes"]],
     }
     save_json(args.output, mission)

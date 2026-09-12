@@ -1,18 +1,24 @@
-"""Step 1: merge the dimensions YOU derived with the positions the GCS resolved.
+"""Step 1: expande la geometría por tipo y la une con las posiciones del GCS.
 
-The catalog carries each element's physical characteristics as prose inside
-`description`, so extracting them is a reading task and it is yours. Positions
-are already in the briefing and must never be retyped: this script takes your
-`target_dimensions.json` (keyed by element name, no coordinates) and joins it
-with the XYZ positions from `mission_input.json`.
+El catálogo guarda las características físicas en la descripción del GRUPO, así
+que una sola entrada por TIPO cubre todos sus elementos: dieciséis turbinas
+comparten una geometría. Este script toma tu `geometry.json` (por tipo, sin
+coordenadas), lo expande a cada elemento y lo une con su posición real.
 
-Writes collision_objects.json in the exact shape validate_mission expects.
+Escribe collision_objects.json con la forma exacta que espera el validador.
 """
 
 import argparse
 import sys
 
 from pipelib import DATA_DIR, load_json, save_json
+
+
+def resolve(element, geometry):
+    """Geometría de un elemento: override por nombre si existe, si no por tipo."""
+    by_name = geometry.get("by_name") or {}
+    by_type = geometry.get("by_type") or {}
+    return by_name.get(element["name"]) or by_type.get(element.get("type") or "unknown")
 
 
 def build(element, dims):
@@ -27,7 +33,7 @@ def build(element, dims):
         "obstacle_id": str(element.get("id", element["name"])),
         "obstacle_name": element["name"],
         "geometry_type": geometry_type,
-        # z is GROUND level: height extends upward from it.
+        # z es el nivel del SUELO: la altura se extiende hacia arriba desde ahí.
         "position": {"x": position["x"], "y": position["y"], "z": position.get("z", 0.0)},
         "dimensions": dimensions,
         "safety_margin": float(dims["safety_margin"]),
@@ -38,26 +44,27 @@ def build(element, dims):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--input", default=DATA_DIR / "mission_input.json")
-    parser.add_argument("--dimensions", default=DATA_DIR / "target_dimensions.json")
+    parser.add_argument("--targets", default=DATA_DIR / "targets.json")
+    parser.add_argument("--obstacles", default=DATA_DIR / "obstacles.json")
+    parser.add_argument("--geometry", default=DATA_DIR / "geometry.json")
     parser.add_argument("--output", default=DATA_DIR / "collision_objects.json")
     args = parser.parse_args()
 
-    mission = load_json(args.input)
-    dimensions = load_json(args.dimensions)
+    geometry = load_json(args.geometry)
+    # Los targets también son obstáculos: son objetos sólidos que hay que esquivar.
+    elements = load_json(args.targets) + load_json(args.obstacles)
 
-    # Inspection targets are obstacles too — they are solid objects to fly around.
-    elements = list(mission["targets"]) + list(mission.get("obstacles") or [])
-
-    missing = [e["name"] for e in elements if e["name"] not in dimensions]
+    resolved = [(e, resolve(e, geometry)) for e in elements]
+    missing = sorted({f"{e['name']} (type: {e.get('type')})" for e, dims in resolved if not dims})
     if missing:
         sys.exit(
-            "No dimensions provided for: "
+            "Sin geometría para: "
             + ", ".join(missing)
-            + ". Every target AND every obstacle needs an entry in target_dimensions.json."
+            + ".\nAgregá su tipo en by_type (o el elemento en by_name) dentro de geometry.json."
         )
 
-    save_json(args.output, [build(e, dimensions[e["name"]]) for e in elements])
+    save_json(args.output, [build(e, dims) for e, dims in resolved])
+    print(f"{len(resolved)} objetos de colisión desde {len(geometry.get('by_type') or {})} tipo(s)")
 
 
 if __name__ == "__main__":

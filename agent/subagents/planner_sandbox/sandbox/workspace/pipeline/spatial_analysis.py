@@ -1,6 +1,6 @@
 """Step 2 del plan de misión: análisis espacial MEDIDO (nunca estimado por el modelo).
 
-Lee mission_input.json y escribe step2_spatial_analysis.json con la forma del
+Lee targets.json + devices.json y escribe step2_spatial_analysis.json con la forma del
 esquema `Step2SpatialAnalysisSchema` de mcp_server. Los campos narrativos
 (`approach_notes`) quedan vacíos: los redacta el planner leyendo estos números.
 """
@@ -55,12 +55,13 @@ def typical_spacing(targets):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--input", default=DATA_DIR / "mission_input.json")
+    parser.add_argument("--targets", default=DATA_DIR / "targets.json")
+    parser.add_argument("--devices", default=DATA_DIR / "devices.json")
     parser.add_argument("--output", default=DATA_DIR / "step2_spatial_analysis.json")
     args = parser.parse_args()
 
-    mission = load_json(args.input)
-    targets = mission["targets"]
+    targets = load_json(args.targets)
+    drones = load_json(args.devices)
     if len(targets) < 2:
         sys.exit("se requieren al menos 2 targets para el análisis espacial")
 
@@ -76,7 +77,7 @@ def main():
                 "nearest_targets": ranked_targets(d["position"], targets, 3),
                 "farthest_targets": ranked_targets(d["position"], targets, 3, reverse=True),
             }
-            for d in mission["drones"]
+            for d in drones
         ],
         "target_field": {
             "span": {"x": round(max_x - min_x, 1), "y": round(max_y - min_y, 1)},

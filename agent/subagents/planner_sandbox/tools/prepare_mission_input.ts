@@ -7,21 +7,58 @@ const Identifier = z.union([z.string(), z.number()]);
 
 type XYZ = { x: number; y: number; z: number };
 
+type Element = {
+  id: string | number;
+  name: string;
+  type: string | null;
+  position: XYZ;
+  description: string | null;
+  groupdescription: string | null;
+};
+
 type Briefing = {
   global_origin: { lat: number; lng: number; alt: number };
   devices: { id: number; name: string; category: string; location: XYZ }[];
-  targets: { id: string; name: string; position: XYZ; description?: string }[];
-  obstacles: unknown[];
+  targets: Element[];
+  obstacles: Element[];
   boundaries: unknown;
 };
 
+const placeable = ({ id, name, type, position }: Element) => ({ id, name, type, position });
+
+/**
+ * One entry per element TYPE, not per element: the catalog stores physical
+ * characteristics on the group, so sixteen turbines share one description.
+ * This is the only file the model reads, and it deliberately carries no
+ * coordinates — there is nothing here it could corrupt.
+ */
+function elementTypes(elements: Element[]) {
+  const byType = new Map<string, { type: string; descriptions: Set<string>; elements: string[] }>();
+
+  for (const element of elements) {
+    const type = element.type ?? "unknown";
+    const entry = byType.get(type) ?? { type, descriptions: new Set<string>(), elements: [] };
+    const description = element.description ?? element.groupdescription;
+    if (description) entry.descriptions.add(description);
+    entry.elements.push(element.name);
+    byType.set(type, entry);
+  }
+
+  return [...byType.values()].map(({ type, descriptions, elements: names }) => ({
+    type,
+    descriptions: [...descriptions],
+    elements: names,
+    element_count: names.length,
+  }));
+}
+
 export default defineTool({
   description:
-    "Resolve the mission briefing and write it into the sandbox as /workspace/data/mission_input.json, " +
-    "ready for the pipeline. Call this FIRST, before any other step. Pass the target and device " +
-    "identifiers exactly as they appear in your briefing message. The full geometry is written " +
-    "straight to the file: it never passes through your context, so read it with the pipeline, " +
-    "never by retyping it.",
+    "Resolve the mission briefing and lay it out as files in /workspace/data, ready for the pipeline. " +
+    "Call this FIRST, before anything else. Pass the target and device identifiers exactly as they " +
+    "appear in your briefing message. Positions, ids and boundaries are written straight to disk and " +
+    "never enter your context; the only file you need to read is element_types.json, which carries " +
+    "each element TYPE and its description with no coordinates.",
   inputSchema: z.object({
     targets: z
       .array(z.object({ id: Identifier, name: z.string() }))
@@ -51,33 +88,35 @@ export default defineTool({
 
     const briefing = body as Briefing;
     const sandbox = await ctx.getSandbox();
-    await sandbox.writeTextFile({
-      path: "data/mission_input.json",
-      content: JSON.stringify(
-        {
-          global_origin: briefing.global_origin,
-          // Devices carry their XYZ under `location`; the pipeline reads
-          // `position` for every placeable thing, so normalize it here once.
-          drones: briefing.devices.map(({ location, ...device }) => ({ ...device, position: location })),
-          targets: briefing.targets,
-          obstacles: briefing.obstacles,
-          boundaries: briefing.boundaries,
-        },
-        null,
-        2,
-      ),
-    });
 
-    // Only a receipt: the geometry stays in the file.
+    // Devices carry their XYZ under `location`; the pipeline reads `position`
+    // for every placeable thing, so normalize it here once.
+    const devices = briefing.devices.map(({ location, ...device }) => ({ ...device, position: location }));
+    const types = elementTypes([...briefing.targets, ...briefing.obstacles]);
+
+    const files: Record<string, unknown> = {
+      "data/origin.json": { global_origin: briefing.global_origin, boundaries: briefing.boundaries },
+      "data/devices.json": devices,
+      "data/targets.json": briefing.targets.map(placeable),
+      "data/obstacles.json": briefing.obstacles.map(placeable),
+      "data/element_types.json": types,
+    };
+
+    await Promise.all(
+      Object.entries(files).map(([path, content]) =>
+        sandbox.writeTextFile({ path, content: JSON.stringify(content, null, 2) }),
+      ),
+    );
+
+    // Only a receipt: the geometry stays in the files.
     return {
-      path: "/workspace/data/mission_input.json",
+      written: Object.keys(files).map((path) => `/workspace/${path}`),
+      read_this_one: "/workspace/data/element_types.json",
       global_origin: briefing.global_origin,
       target_count: briefing.targets.length,
-      drone_count: briefing.devices.length,
       obstacle_count: briefing.obstacles.length,
-      target_ids: briefing.targets.map((target) => target.id),
-      target_names: briefing.targets.map((target) => target.name),
-      drone_names: briefing.devices.map((device) => device.name),
+      drone_names: devices.map((device) => device.name),
+      types: types.map(({ type, element_count }) => ({ type, element_count })),
     };
   },
 });

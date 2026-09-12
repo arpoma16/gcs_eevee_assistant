@@ -1,0 +1,42 @@
+[
+  {
+    "id": "4",
+    "name": "A4",
+    "type": "windTurbine",
+    "position": {
+      "x": 0.0,
+      "y": 0.0,
+      "z": 0.0
+    }
+  },
+  {
+    "id": "8",
+    "name": "B4",
+    "type": "windTurbine",
+    "position": {
+      "x": 100.0,
+      "y": 0.0,
+      "z": 0.0
+    }
+  },
+  {
+    "id": "12",
+    "name": "C4",
+    "type": "windTurbine",
+    "position": {
+      "x": 0.0,
+      "y": 120.0,
+      "z": 0.0
+    }
+  },
+  {
+    "id": "16",
+    "name": "D4",
+    "type": "windTurbine",
+    "position": {
+      "x": 100.0,
+      "y": 120.0,
+      "z": 0.0
+    }
+  }
+]

@@ -120,31 +120,60 @@ Work the whole sequence in as few turns as you can: each script call is cheap an
 
 ## STEP 0 — Load the briefing
 
-Call `prepare_mission_input` with the target and device identifiers from your briefing message. It returns a receipt (counts, names, origin) — the geometry itself stays in the file.
+Call `prepare_mission_input` with the target and device identifiers from your briefing message. It lays the mission out as files:
 
-## STEP 1 — Derive each element's geometry
+```
+/workspace/data/
+  origin.json          origen local y límites del área   ← scripts
+  devices.json         drones con su posición XYZ        ← scripts
+  targets.json         targets con su posición XYZ e id  ← scripts
+  obstacles.json       obstáculos con su posición XYZ    ← scripts
+  element_types.json   tipos y sus descripciones         ← VOS
+```
 
-`read_file` on `/workspace/data/mission_input.json`. Every target and every obstacle carries its physical characteristics as **prose** in `description` / `groupdescription` (for example: `hub_height:80m tower_diameter:6m rotor_diameter:56m max_tip_height:108m yaw_orientation:90deg`). Reading that is your job — no script can.
+**`element_types.json` is the only file you open.** The other four carry coordinates and ids; the pipeline reads them straight from disk. You never need a position, and a position you retyped is a position you can get wrong.
 
-Write `/workspace/data/target_dimensions.json`, keyed by element **name**, one entry per target AND per obstacle:
+## STEP 1 — Derive the geometry of each element TYPE
+
+`read_file` on `/workspace/data/element_types.json`. Each entry is one element **type** with the descriptions the catalog holds for it and the elements that belong to it.
+
+Those descriptions are **prose**, and they are not uniform:
+
+```
+windTurbine:     hub_height:80m  rotor_diameter: 56m  yaw_orientation: 90deg
+building_short:  rectangular buildings width 35m,length 20m y de altura 30m orietation(yaw) 90 degress
+```
+
+Reading them is your job — no script can. Typos, mixed languages and missing units are expected; work out the real dimensions anyway.
+
+**One entry per TYPE, not per element.** The catalog keeps physical characteristics on the group, so sixteen turbines share one geometry. An inspection is normally one or two types, not twenty.
+
+Write `/workspace/data/geometry.json`:
 
 ```json
 {
-  "A1": { "geometry_type": "circle", "radius": 28, "height": 108, "yaw": 90, "safety_margin": 10 },
-  "warehouse_1": { "geometry_type": "rectangle", "width": 20, "length": 30, "height": 12, "yaw": 0, "safety_margin": 10 }
+  "by_type": {
+    "windTurbine": { "geometry_type": "circle", "radius": 28, "height": 108, "yaw": 90, "safety_margin": 10 },
+    "building": { "geometry_type": "rectangle", "width": 20, "length": 30, "height": 12, "yaw": 0, "safety_margin": 10 }
+  },
+  "by_name": {}
 }
 ```
 
 - `radius` for circles, `width`/`length` for rectangles: the element's REAL footprint, before any margin. For a wind turbine the swept rotor is the footprint, not the tower.
 - `height`: the topmost point a drone could hit.
+- `yaw`: the element's orientation in degrees, 0 = North, 90 = East. Ignored for circles.
 - `safety_margin`: CLEARANCE_MARGIN. The extra clearance only, never the element's own size.
-- **No coordinates.** Positions are already in the briefing; the script joins them.
+- `by_name`: only for an element that genuinely differs from its type. Leave it empty otherwise.
+- **No coordinates, ever.** The script joins your geometry with the positions already on disk.
 
 Then:
 
 ```bash
 python3 pipeline/build_collision_objects.py
 ```
+
+It expands your types over every target and obstacle, and fails loudly naming any element whose type you did not cover.
 
 ## STEP 2 — Spatial analysis
 

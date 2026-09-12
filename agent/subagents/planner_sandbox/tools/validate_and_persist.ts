@@ -43,13 +43,13 @@ export default defineTool({
       return JSON.parse(raw);
     };
 
-    const [mission, collision_objects, missionInput] = await Promise.all([
+    const [mission, collision_objects, targets] = await Promise.all([
       readJson("data/mission.json", "pipeline/build_mission.py"),
       readJson("data/collision_objects.json", "pipeline/build_collision_objects.py"),
-      readJson("data/mission_input.json", "prepare_mission_input"),
+      readJson("data/targets.json", "prepare_mission_input"),
     ]);
 
-    const target_ids = missionInput.targets.map((t: { id: string | number }) => String(t.id));
+    const target_ids = targets.map((t: { id: string | number }) => String(t.id));
 
     const result = await post("/missions/validate", { mission, collision_objects, target_ids });
 

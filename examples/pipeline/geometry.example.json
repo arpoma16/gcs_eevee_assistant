@@ -1,0 +1,19 @@
+{
+  "by_type": {
+    "windTurbine": {
+      "geometry_type": "circle",
+      "radius": 28,
+      "height": 108,
+      "yaw": 90,
+      "safety_margin": 10
+    },
+    "building": {
+      "geometry_type": "rectangle",
+      "width": 20,
+      "length": 30,
+      "height": 12,
+      "yaw": 0,
+      "safety_margin": 10
+    }
+  }
+}

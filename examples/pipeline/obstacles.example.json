@@ -1,0 +1,12 @@
+[
+  {
+    "id": "31",
+    "name": "warehouse_1",
+    "type": "building",
+    "position": {
+      "x": 50.0,
+      "y": 60.0,
+      "z": 0.0
+    }
+  }
+]

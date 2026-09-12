@@ -1,0 +1,25 @@
+[
+  {
+    "type": "windTurbine",
+    "descriptions": [
+      "location: Viana do Castelo, Portugal offshore at sea windTurbine: hub_height:80m blade_length: 28m blade_count:3 ground_elevation: sea level 0m tower_diameter:6m rotor_diameter: 56m max_tip_height: 108m min_tip_height: 52m yaw_orientation: 90deg blade_state: stopped"
+    ],
+    "elements": [
+      "A4",
+      "B4",
+      "C4",
+      "D4"
+    ],
+    "element_count": 4
+  },
+  {
+    "type": "building",
+    "descriptions": [
+      "storage building width:20m length:30m height:12m orientation: 0deg"
+    ],
+    "elements": [
+      "warehouse_1"
+    ],
+    "element_count": 1
+  }
+]

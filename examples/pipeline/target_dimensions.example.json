@@ -1,7 +1,0 @@
-{
-  "A4": { "geometry_type": "circle", "radius": 28, "height": 108, "yaw": 90, "safety_margin": 10 },
-  "B4": { "geometry_type": "circle", "radius": 28, "height": 108, "yaw": 90, "safety_margin": 10 },
-  "C4": { "geometry_type": "circle", "radius": 28, "height": 108, "yaw": 90, "safety_margin": 10 },
-  "D4": { "geometry_type": "circle", "radius": 28, "height": 108, "yaw": 90, "safety_margin": 10 },
-  "warehouse_1": { "geometry_type": "rectangle", "width": 20, "length": 30, "height": 12, "yaw": 0, "safety_margin": 10 }
-}

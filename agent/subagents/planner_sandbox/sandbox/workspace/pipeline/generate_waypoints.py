@@ -1,6 +1,6 @@
 """Step 4 del plan de misión: generación determinista de waypoints.
 
-Lee mission_input.json (posiciones), collision_objects.json (geometría real de
+Lee targets.json y devices.json (posiciones), collision_objects.json (geometría de
 cada target) y strategy_params.json, y escribe step4_waypoints.json con la forma
 del esquema `Step4WaypointsSchema` de mcp_server:
 - takeoff/landing por drone (XY de la posición inicial, Z = z + takeoff_landing_alt)
@@ -62,21 +62,21 @@ def takeoff_landing(drone, params):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--input", default=DATA_DIR / "mission_input.json")
+    parser.add_argument("--targets", default=DATA_DIR / "targets.json")
+    parser.add_argument("--devices", default=DATA_DIR / "devices.json")
     parser.add_argument("--collision-objects", default=DATA_DIR / "collision_objects.json")
     parser.add_argument("--strategy", default=DATA_DIR / "strategy_params.json")
     parser.add_argument("--output", default=DATA_DIR / "step4_waypoints.json")
     args = parser.parse_args()
 
-    mission = load_json(args.input)
     params = load_json(args.strategy)
     by_name = {o["obstacle_name"]: o for o in load_json(args.collision_objects)}
 
     # Only inspection targets get a waypoint ring; the rest are just obstacles.
-    target_names = [t["name"] for t in mission["targets"]]
+    target_names = [t["name"] for t in load_json(args.targets)]
 
     step4 = {
-        "takeoff_landing": [takeoff_landing(d, params) for d in mission["drones"]],
+        "takeoff_landing": [takeoff_landing(d, params) for d in load_json(args.devices)],
         "target_blocks": [target_block(by_name[name], params) for name in target_names],
     }
     save_json(args.output, step4)
