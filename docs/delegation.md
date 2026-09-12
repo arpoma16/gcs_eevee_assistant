@@ -51,6 +51,24 @@ acepta un `message` de texto libre, y nada obliga al modelo a incluir los datos
 correctos. Con `inputSchema` el modelo ve los campos y eve rechaza la llamada
 malformada — igual que el `requestMissionPlanSchema` del mcp_server.
 
+### Qué planner recibe el trabajo
+
+`EVE_PLANNER` elige el destinatario: `planner` (default) o `planner_sandbox`.
+Ambos comparten este mismo contrato de entrada y el mismo `outputSchema` de
+salida, así que se intercambian sin tocar el resto del sistema. Lo único que
+cambia es la forma del `message`:
+
+- **`planner`** recibe el briefing XYZ completo, con las secciones
+  (`## Elements to Inspect`, `## obstacles Information`…) que su Step 1 espera.
+- **`planner_sandbox`** recibe solo identificadores e intención: materializa la
+  geometría en su propio sandbox con `prepare_mission_input`, así que mandarle
+  el XYZ sería gastar contexto en datos que vuelve a pedir.
+
+En ambos casos `resolveBriefing` corre igual, porque es el único punto donde un
+identificador inventado se puede reportar a quien lo eligió.
+
+### Campos
+
 | Campo | Qué lleva |
 | ----- | --------- |
 | `user_request` | La intención del usuario, en sus palabras. |

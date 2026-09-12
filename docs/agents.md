@@ -30,13 +30,46 @@ Define la topología de agentes del sistema y dónde vive cada pieza.
 Atiende al operador, ejecuta tools de vuelo directas (con aprobación humana en
 las que mandan a los UAVs) y delega la planificación.
 
-## El subagente `planner`
+## Dos planners
+
+Hay dos subagentes de planificación que resuelven lo mismo de formas opuestas.
+Comparten el contrato de entrada y el de salida, así que se intercambian con
+`EVE_PLANNER` sin tocar nada más.
+
+| | `planner` | `planner_sandbox` |
+| --- | --- | --- |
+| Geometría | La **razona** el modelo | La **computa** un pipeline Python |
+| Ejecución | Turno a turno (`mark_step_complete`) | Scripts, entrega única |
+| Tools del GCS | MCP: `mark_step_complete`, `validate_mission` | Propias: `prepare_mission_input`, `validate_and_persist` |
+| Sandbox | El default del framework | Propio, con el pipeline sembrado |
+| Necesita `GCS_CHAT_ID` | Sí | No |
+| Origen | Puerto fiel de `planner.md` | Mismo prompt, con los pasos 2/4/5 delegados a scripts |
+
+El primero es la referencia: reproduce el comportamiento que el equipo ya afinó
+en `multiuav_gcs`. El segundo existe para sacar los números del modelo — la
+aritmética la hace Python y el modelo solo decide. Detalle del segundo en
+[sandbox.md](sandbox.md).
+
+### `planner`
 
 | Pieza | Archivo |
 | ----- | ------- |
 | Config + `description` | [`agent/subagents/planner/agent.ts`](../agent/subagents/planner/agent.ts) |
 | System prompt | [`agent/subagents/planner/instructions.md`](../agent/subagents/planner/instructions.md) — portado de `planner.md` |
 | Sus tools | [`agent/subagents/planner/connections/multiuav-gcs.ts`](../agent/subagents/planner/connections/multiuav-gcs.ts) |
+
+### `planner_sandbox`
+
+| Pieza | Archivo |
+| ----- | ------- |
+| Config + `description` | [`agent/subagents/planner_sandbox/agent.ts`](../agent/subagents/planner_sandbox/agent.ts) |
+| System prompt | [`agent/subagents/planner_sandbox/instructions.md`](../agent/subagents/planner_sandbox/instructions.md) |
+| Carga del briefing | [`tools/prepare_mission_input.ts`](../agent/subagents/planner_sandbox/tools/prepare_mission_input.ts) |
+| Validación y persistencia | [`tools/validate_and_persist.ts`](../agent/subagents/planner_sandbox/tools/validate_and_persist.ts) |
+| Pipeline | [`sandbox/workspace/pipeline/`](../agent/subagents/planner_sandbox/sandbox/workspace/pipeline/) |
+
+No declara connection MCP: habla con el GCS solo por tools autoradas, y por eso
+tampoco arrastra el parche del `chat_id`.
 
 Dos detalles que impone eve:
 
