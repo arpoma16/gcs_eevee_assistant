@@ -32,35 +32,39 @@ No es para portar lógica de dominio que ya corre en el GCS
 
 ## Asignación de sandbox por agente
 
-- **Un sandbox por conversación**: se crea con el thread y persiste mientras el
-  thread esté activo; los archivos sobreviven entre turnos del mismo thread.
-- **Configuración por agente, con fallback**: cada agente/subagente puede
-  declarar su `sandbox_config_path`. Si no declara ninguno, hereda la
-  configuración **default**.
+Cada agente de eve tiene **exactamente un sandbox**, y un subagente declarado
+**no hereda el del padre**: o declara el suyo, o recibe el default del
+framework. Eso vale también para los archivos sembrados.
 
-| Agente | Config | Contenido preconfigurado |
-| ------ | ------ | ------------------------ |
-| (fallback) | [`examples/sandbox/default.json`](../examples/sandbox/default.json) | `/workspace/tools` (smoke test y utilidades comunes, solo lectura) |
-| principal | `examples/sandbox/default.json` | El default le alcanza: sus scripts son ad-hoc, los escribe en runtime. |
-| `planner` | [`examples/sandbox/planner.json`](../examples/sandbox/planner.json) | Además, `/workspace/pipeline` (pipeline de waypoints, solo lectura) |
+| Agente | Definición | Contenido sembrado |
+| ------ | ---------- | ------------------ |
+| raíz | [`agent/sandbox/sandbox.ts`](../agent/sandbox/sandbox.ts) + `agent/sandbox/workspace/**` | `/workspace/tools` (smoke test), `/workspace/pipeline` (scripts de planificación) |
+| `planner` | sin declarar → default del framework | ninguno |
 
-Layout dentro de todo sandbox:
+El layout de carpeta (`agent/sandbox/sandbox.ts` junto a
+`agent/sandbox/workspace/`) es lo que le dice a eve que siembre ese directorio
+en `/workspace` al crear el sandbox:
 
 ```
 /workspace/
-  tools/      solo lectura — smoke test y utilidades comunes
-  pipeline/   solo lectura — solo en el sandbox del planner
-  data/       escritura — entrada/salida de la misión en curso
+  tools/      sembrado — smoke test y utilidades comunes
+  pipeline/   sembrado — pipeline de planificación
+  data/       lo crean los scripts — entrada/salida de la misión en curso
 ```
 
-Los scripts preconfigurados viven en `agent/sandbox/workspace/` de este repo
-(eve siembra ese directorio en `/workspace` al crear el sandbox): están
-versionados acá, no se generan en runtime.
+Los scripts están versionados en el repo, no se generan en runtime.
 
-## Flujo de datos del planner (archivos, no contexto)
+> **Estado: el pipeline todavía no está conectado.** Los scripts se siembran,
+> pero nada le indica al planner que los ejecute — sus instructions siguen
+> pidiéndole que razone la geometría a mano, como el `planner.md` original. Y
+> como el sandbox no se hereda, conectarlo implica además mover el seed a
+> `agent/subagents/planner/sandbox/`. Lo de abajo es el diseño objetivo, no lo
+> que corre hoy.
+
+## Flujo de datos del planner (diseño objetivo)
 
 ```
-mission_input.json          (materializado por context_files al delegar — NO pasa por el modelo)
+mission_input.json          (lo escribiría el briefing al delegar — NO pasa por el modelo)
 strategy_params.json        (lo escribe el planner: sus decisiones de estrategia)
         │
         ▼
@@ -87,11 +91,10 @@ de los archivos generados por el pipeline, nunca del razonamiento del modelo.**
 Los campos narrativos (`standing`, `layout`, `approach_notes`,
 `reasoning_summary`) sí los redacta el modelo, leyendo los números del archivo.
 
-`mission_input.json` es el equivalente en archivo de los `contextParams` que
-hoy `subAgentRegistry` inyecta en las tool calls del subagente: datos
-estructurados que llegan por un canal que el modelo no puede corromper. El
-mecanismo de entrega (`context_files` de la delegación) está en
-[delegation.md](delegation.md).
+`mission_input.json` sería el briefing ya resuelto en XYZ que hoy
+`request_mission_plan` arma y le pasa al planner dentro del `message` (ver
+[delegation.md](delegation.md)): los mismos datos, pero llegando como archivo
+en vez de como texto en el contexto del modelo.
 
 ## Smoke test
 

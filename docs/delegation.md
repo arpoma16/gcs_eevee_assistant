@@ -123,4 +123,4 @@ El stream del padre lleva los eventos de control `subagent.called` y
 pasos, sus llamadas al validador— se lee
 `subagent.called.data.childSessionId` y se abre
 `GET /eve/v1/session/:childSessionId/stream`. La UI del GCS puede mostrar la
-planificación en vivo con eso, sin tocar el thread del operador.
+planificación en vivo con eso, sin tocar la sesión del operador.
