@@ -148,22 +148,40 @@ Reading them is your job — no script can. Typos, mixed languages and missing u
 
 **One entry per TYPE, not per element.** The catalog keeps physical characteristics on the group, so sixteen turbines share one geometry. An inspection is normally one or two types, not twenty.
 
-Write `/workspace/data/geometry.json`:
+Write `/workspace/data/geometry.json`. Each type carries **what it is** and **how to fly around it** — both derived from the same description, so they are decided together:
 
 ```json
 {
   "by_type": {
-    "windTurbine": { "geometry_type": "circle", "radius": 28, "height": 108, "yaw": 90, "safety_margin": 10 },
-    "building": { "geometry_type": "rectangle", "width": 20, "length": 30, "height": 12, "yaw": 0, "safety_margin": 10 }
+    "windTurbine": {
+      "geometry_type": "circle", "radius": 28, "height": 108, "yaw": 90, "safety_margin": 10,
+      "stand_off": 20.5, "altitude_fraction": 0.74, "viewpoints": 4
+    },
+    "building": {
+      "geometry_type": "rectangle", "width": 20, "length": 30, "height": 12, "yaw": 0, "safety_margin": 10,
+      "stand_off": 12.3, "altitude_fraction": 0.5, "viewpoints": 4
+    }
   },
   "by_name": {}
 }
 ```
 
+**What it is** — read from the description:
+
 - `radius` for circles, `width`/`length` for rectangles: the element's REAL footprint, before any margin. For a wind turbine the swept rotor is the footprint, not the tower.
 - `height`: the topmost point a drone could hit.
 - `yaw`: the element's orientation in degrees, 0 = North, 90 = East. Ignored for circles.
 - `safety_margin`: CLEARANCE_MARGIN. The extra clearance only, never the element's own size.
+
+**How to fly around it** — derived from the strategy and the dimensions you just read:
+
+- `stand_off`: clearance beyond the footprint, from the framing rule
+  `standoff_optical = frame_extent / (2 × tan(camera_fov / 2))`, minus the footprint radius (the pipeline adds it back). `frame_extent` is the dimension the strategy says one frame must span — the rotor diameter for a turbine, the facade width for a building. Read `camera_fov` from MISSION PARAMETERS; never assume 60°. The pipeline raises the result to R_SAFE if it comes out smaller: safety wins over framing.
+- `altitude_fraction`: where on the element's height the ring sits, as a fraction. `0.5` is the vertical midpoint; for a turbine, `hub_height / max_tip_height` puts it at the hub. The pipeline clamps the result to [MIN_INSPECTION_ALT, MAX_ALTITUDE].
+- `viewpoints`: how many points ring the element — what the strategy asks for (SIMPLE 1, CIRCULAR 4, DETAILED more).
+
+**This is per TYPE for a reason.** A mission with turbines and buildings needs a different stand-off for each: the framing rule depends on the element's own dimensions, so one global number is wrong for at least one of them. Any of the three may be omitted, and then the global value from `strategy_params.json` applies.
+
 - `by_name`: only for an element that genuinely differs from its type. Leave it empty otherwise.
 - **No coordinates, ever.** The script joins your geometry with the positions already on disk.
 
@@ -200,26 +218,25 @@ Write `/workspace/data/step3_assignment.json`:
   "n_assigned": 2, "n_total": 2, "balance_ratio": 1.0 }
 ```
 
-## STEP 4 — Strategy parameters and waypoints
+## STEP 4 — Mission-wide parameters and waypoints
 
-Translate the inspection strategy from your briefing into numbers, and write `/workspace/data/strategy_params.json`:
+The per-type flight parameters already went into `geometry.json` in Step 1. What is left is what belongs to the mission as a whole. Write `/workspace/data/strategy_params.json`:
 
 ```json
 { "viewpoints_per_target": 4, "stand_off": 15.0, "altitude_fraction": 0.5,
   "takeoff_landing_alt": 5.0, "cruise_speed": 5.0 }
 ```
 
-- `viewpoints_per_target`: what the strategy asks for (SIMPLE 1, CIRCULAR 4, DETAILED more).
-- `stand_off`: clearance beyond the element's footprint, computed from the framing rule:
-  `standoff_optical = frame_extent / (2 × tan(camera_fov / 2))`, where `frame_extent` is the dimension the strategy says one frame must span. Read `camera_fov` from MISSION PARAMETERS — never assume 60°. The pipeline raises it to R_SAFE if it comes out smaller; safety wins over framing.
-- `altitude_fraction`: where on the element's height the ring sits (0.5 = vertical midpoint). The pipeline clamps the result to [MIN_INSPECTION_ALT, MAX_ALTITUDE].
 - `cruise_speed`, `takeoff_landing_alt`: from MISSION PARAMETERS and §1.
+- The other three are **fallbacks**, used only for a type whose `geometry.json` entry omits them. Give them sane values; they should rarely be the ones that apply.
 
 Then:
 
 ```bash
 python3 pipeline/generate_waypoints.py
 ```
+
+It prints the stand-off, altitude fraction and viewpoint count it resolved for every target. **Read that output** — it is your check that each type got the parameters you intended, before any of it reaches the validator.
 
 ## STEP 5 — Route order and assembly
 

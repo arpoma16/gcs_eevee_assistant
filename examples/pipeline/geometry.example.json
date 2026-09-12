@@ -5,7 +5,10 @@
       "radius": 28,
       "height": 108,
       "yaw": 90,
-      "safety_margin": 10
+      "safety_margin": 10,
+      "stand_off": 20.5,
+      "altitude_fraction": 0.74,
+      "viewpoints": 4
     },
     "building": {
       "geometry_type": "rectangle",
@@ -13,7 +16,11 @@
       "length": 30,
       "height": 12,
       "yaw": 0,
-      "safety_margin": 10
+      "safety_margin": 10,
+      "stand_off": 12.3,
+      "altitude_fraction": 0.5,
+      "viewpoints": 4
     }
-  }
+  },
+  "by_name": {}
 }

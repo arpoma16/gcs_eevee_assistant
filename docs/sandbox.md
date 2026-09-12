@@ -83,11 +83,11 @@ es**, y ahí empiezan los scripts.
 
 | Paso | Responsable | Por qué |
 | ---- | ----------- | ------- |
-| 1 — geometría de cada tipo | **modelo** → `geometry.json` | Extraer dimensiones de prosa irregular. |
+| 1 — geometría y vuelo, por tipo | **modelo** → `geometry.json` | Extraer dimensiones de prosa irregular, y derivar de ellas el stand-off y la altitud que pide la estrategia. |
 | 1b — objetos de colisión | script | Expande la geometría por tipo sobre cada elemento y la une con su posición. |
 | 2 — análisis espacial | script | Distancias, spans, pares extremos: medidos, no estimados. |
 | 3 — asignación drone→targets | **modelo** → `step3_assignment.json` | Decisión contra el objetivo de makespan. |
-| 4 — parámetros de estrategia | **modelo** → `strategy_params.json` | Traduce la estrategia a números (viewpoints, stand-off, altitud). |
+| 4 — parámetros de misión | **modelo** → `strategy_params.json` | Velocidad de crucero, altura de despegue, y fallbacks. |
 | 4b — waypoints | script | Trigonometría: anillos, yaw 0=Norte/90=Este, clamps de Z. |
 | 5 — orden de ruta y ensamblado | script | Vecino más cercano, dirección de giro y costo. |
 
@@ -96,14 +96,27 @@ grupo, así que dieciséis turbinas comparten una geometría: el modelo escribe 
 entrada y el script la expande. `by_name` queda para el elemento que
 genuinamente difiere de su tipo.
 
-Regla dura: **el modelo nunca escribe una coordenada, una distancia ni un
-ángulo.** Si un número entra al plan, lo produjo un script.
+**Y por tipo también el vuelo**, no solo la forma. El stand-off sale de
+`frame_extent / (2 × tan(fov/2))`, y `frame_extent` son las dimensiones del
+propio elemento: una misión con turbinas (rotor 56 m) y edificios (fachada 35 m)
+necesita 48,5 m para unas y 30,3 m para otros. Un único valor global es
+incorrecto para al menos uno de los dos, así que `geometry.json` los lleva por
+tipo y `strategy_params.json` queda solo con lo que es de la misión entera
+(velocidad, altura de despegue) más fallbacks.
+
+La regla, con precisión: **el modelo deriva la geometría del elemento; los
+scripts derivan la del vuelo.** El modelo escribe distancias y ángulos —
+`radius`, `height`, `yaw`, `stand_off`— porque salen de leer una descripción.
+Lo que no escribe nunca es una **posición**: ninguna coordenada de waypoint, de
+ruta o de obstáculo pasa por él.
 
 ```
 prepare_mission_input          → origin/devices/targets/obstacles/element_types.json
         │
         ▼  el modelo lee SOLO element_types.json
-geometry.json  strategy_params.json  step3_assignment.json   (los escribe el modelo)
+geometry.json          forma + parámetros de vuelo, POR TIPO   (los escribe el modelo)
+strategy_params.json   velocidad, despegue y fallbacks          (los escribe el modelo)
+step3_assignment.json  qué drone vuela qué target               (los escribe el modelo)
         │
         ▼
 pipeline/build_collision_objects.py → collision_objects.json
