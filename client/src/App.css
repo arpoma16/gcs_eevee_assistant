@@ -1,0 +1,81 @@
+.app {
+  display: flex;
+  flex-grow: 1;
+  min-height: 0;
+}
+
+.sidebar {
+  width: 220px;
+  flex-shrink: 0;
+  min-height: 0;
+  border-right: 1px solid var(--border);
+  padding: 16px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-sizing: border-box;
+
+  @media (max-width: 640px) {
+    width: 160px;
+  }
+}
+
+.new-chat {
+  padding: 10px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--accent-border);
+  background: var(--accent-bg);
+  color: var(--text-h);
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.threads {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex-grow: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.thread {
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 15px;
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.thread:hover {
+  background: var(--social-bg);
+}
+
+.thread.active {
+  background: var(--accent-bg);
+  color: var(--text-h);
+}
+
+.main {
+  flex-grow: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 0 20px;
+  box-sizing: border-box;
+}
+
+.main h1 {
+  font-size: 22px;
+  margin: 20px 0 0;
+  letter-spacing: normal;
+}

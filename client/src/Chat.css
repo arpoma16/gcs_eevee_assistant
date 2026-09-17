@@ -1,0 +1,106 @@
+.chat {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  flex-grow: 1;
+  min-height: 0;
+  padding: 24px 0;
+  box-sizing: border-box;
+  text-align: left;
+}
+
+.messages {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex-grow: 1;
+  overflow-y: auto;
+}
+
+.message {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 14px;
+}
+
+.message header {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.message.user {
+  background: var(--accent-bg);
+  align-self: flex-end;
+}
+
+.empty {
+  color: var(--text);
+  margin: auto;
+}
+
+.approval {
+  border: 1px solid var(--accent-border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.approval button {
+  align-self: flex-start;
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 14px;
+  color: var(--text);
+}
+
+.status button {
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-h);
+  font: inherit;
+  cursor: pointer;
+}
+
+.error {
+  color: #d33;
+}
+
+form {
+  display: flex;
+  gap: 8px;
+}
+
+form input {
+  flex-grow: 1;
+  padding: 10px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  font: inherit;
+  background: var(--bg);
+  color: var(--text-h);
+}
+
+form button {
+  padding: 10px 16px;
+  border-radius: 6px;
+  border: 1px solid var(--accent-border);
+  background: var(--accent-bg);
+  color: var(--text-h);
+  font: inherit;
+  cursor: pointer;
+}
