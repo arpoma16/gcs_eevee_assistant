@@ -1,4 +1,4 @@
-import { defineAgent } from "eve";
+import { defineAgent, defineDynamic } from "eve";
 import { resolveModel } from "../../lib/models";
 
 export default defineAgent({
@@ -7,5 +7,9 @@ export default defineAgent({
     "de razonarla: mide la distribución espacial, genera los waypoints de inspección y ordena las " +
     "rutas ejecutando un pipeline Python determinista, y solo decide la estrategia y la reparación " +
     "de colisiones. Variante de `planner` para misiones donde los números no pueden ser estimados.",
-  ...resolveModel("high"),
+  model: defineDynamic({
+    events: {
+      "step.started": () => resolveModel("high"),
+    },
+  }),
 });

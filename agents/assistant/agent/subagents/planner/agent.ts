@@ -1,4 +1,4 @@
-import { defineAgent } from "eve";
+import { defineAgent, defineDynamic } from "eve";
 import { resolveModel } from "../../lib/models";
 
 // Planificación es la tarea de razonamiento más pesada del sistema (capability:
@@ -10,5 +10,9 @@ export default defineAgent({
     "y construye un plan de vuelo en coordenadas XYZ: modela obstáculos, asigna targets a drones, " +
     "genera waypoints de inspección, ordena rutas por coste y repara colisiones hasta que el " +
     "validador lo acepta. Delegá acá toda creación de plan de misión: no calcules waypoints vos mismo.",
-  ...resolveModel("high"),
+  model: defineDynamic({
+    events: {
+      "step.started": () => resolveModel("high"),
+    },
+  }),
 });
