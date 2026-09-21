@@ -117,6 +117,8 @@ Both `dev:all` scripts pin port **3300** on purpose. Vercel CLI silently moves t
 curl -s localhost:5173/eve/assistant/v1/health   # {"ok":true,"status":"ready",...}
 ```
 
+**Keep `client/`'s `eve` dependency on the same version as the root.** The client has its own `node_modules`, so it resolves `eve/react` independently, and the route shape it builds is decided by *its* copy: 0.53.x requests `/eve/agents/<name>/eve/v1/*` while 0.63.x requests `/eve/<name>/v1/*`. A mismatch is silent at install and at `tsc -b`, and only shows up as a 404 on the session POST in the browser console.
+
 Running it end to end needs three processes:
 
 ```sh
