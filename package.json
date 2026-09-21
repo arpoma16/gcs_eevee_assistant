@@ -10,11 +10,12 @@
     "dev": "eve dev",
     "dev:assistant": "eve dev --agent assistant",
     "dev:monitor": "eve dev --agent monitor --port 2001",
-    "build": "eve build --agent assistant",
-    "build:monitor": "eve build --agent monitor",
+    "dev:all": "npx vercel@59.23.2 dev --local",
+    "build": "eve build",
+    "build:assistant": "eve build --agent assistant",
+    "deploy": "eve deploy",
     "start": "eve start --agent assistant",
     "start:monitor": "eve start --agent monitor --port 3001",
-    "deploy": "eve deploy --agent assistant",
     "eval": "eve eval --agent assistant",
     "typecheck": "tsc"
   },
@@ -22,9 +23,9 @@
     "@ai-sdk/google": "^4.0.67",
     "@ai-sdk/openai": "^4.0.65",
     "@toon-format/toon": "^4.1.1",
-    "@vercel/connect": "1.0.0",
-    "ai": "^7.0.93",
-    "eve": "^0.53.1",
+    "@vercel/connect": "2.2.0",
+    "ai": "^7.0.105",
+    "eve": "^0.63.0",
     "zod": "4.5.4"
   },
   "devDependencies": {
