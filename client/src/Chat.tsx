@@ -14,6 +14,11 @@ function Chat({ threadId, onThreadUpdate }: ChatProps) {
   const [cancelError, setCancelError] = useState<string | null>(null);
 
   const agent = useEveAgent({
+    // Vacío (o ausente) apunta a las rutas same-origin /eve/v1/* que sirve
+    // `eve dev --agent <name>`: un agente por proceso, sin prefijo.
+    // Con "assistant" apunta a /eve/assistant/v1/*, que es como `vercel dev
+    // --local` monta cada miembro del workspace. No combinar con `host`.
+    agent: import.meta.env.VITE_EVE_AGENT || undefined,
     initialEvents: saved.events ?? [],
     initialSession: saved.session,
     resume: saved.session !== undefined,

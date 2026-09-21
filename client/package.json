@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:all": "EVE_DEV_URL=http://localhost:3000 VITE_EVE_AGENT=assistant vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview"
