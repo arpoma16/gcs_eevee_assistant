@@ -10,7 +10,7 @@
     "dev": "eve dev",
     "dev:assistant": "eve dev --agent assistant",
     "dev:monitor": "eve dev --agent monitor --port 2001",
-    "dev:all": "npx vercel@59.23.2 dev --local",
+    "dev:all": "npx vercel@59.23.2 dev --local --listen 3300",
     "build": "eve build",
     "build:assistant": "eve build --agent assistant",
     "deploy": "eve deploy",

@@ -107,9 +107,15 @@ It reaches eve through a same-origin dev proxy (`vite.config.ts`), so no `host` 
 | client command | pairs with (repo root) | proxy target | `VITE_EVE_AGENT` |
 | --- | --- | --- | --- |
 | `npm run dev` | `npm run dev:assistant` | `:2000` | unset → `/eve/v1/*` |
-| `npm run dev:all` | `npm run dev:all` | vercel dev's port | `assistant` → `/eve/assistant/v1/*` |
+| `npm run dev:all` | `npm run dev:all` | `:3300` | `assistant` → `/eve/assistant/v1/*` |
 
-`EVE_DEV_URL` overrides the proxy target; `VITE_EVE_AGENT` feeds `useEveAgent({ agent })`, which must never be combined with `host`. Vercel CLI picks its own port when the requested one is taken, so check the "Available at" line and set `EVE_DEV_URL` to match.
+`EVE_DEV_URL` overrides the proxy target; `VITE_EVE_AGENT` feeds `useEveAgent({ agent })`, which must never be combined with `host`.
+
+Both `dev:all` scripts pin port **3300** on purpose. Vercel CLI silently moves to the next free port when the requested one is taken, and the client would then proxy to whatever else is listening there — a Vite app on that port answers `index.html` with HTTP 200 to *every* path, so even a health check looks like it passed while the chat 404s. If 3300 is taken, change it in both `package.json` files together. To confirm the proxy really reaches eve, check that the body is JSON, not HTML:
+
+```sh
+curl -s localhost:5173/eve/assistant/v1/health   # {"ok":true,"status":"ready",...}
+```
 
 Running it end to end needs three processes:
 
