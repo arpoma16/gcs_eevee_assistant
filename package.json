@@ -3,17 +3,33 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "workspaces": [
-    "agents/*",
-    "packages/*"
-  ],
+  "imports": {
+    "#shared/*": "./shared/*.ts"
+  },
   "scripts": {
-    "dev": "npm run dev -w @gcs/assistant",
-    "dev:assistant": "npm run dev -w @gcs/assistant",
-    "build": "npm run build -w @gcs/assistant",
-    "start": "npm run start -w @gcs/assistant",
-    "eval": "npm run eval -w @gcs/assistant",
-    "typecheck": "npm run typecheck --workspaces --if-present"
+    "dev": "eve dev",
+    "dev:assistant": "eve dev --agent assistant",
+    "dev:monitor": "eve dev --agent monitor --port 2001",
+    "build": "eve build --agent assistant",
+    "build:monitor": "eve build --agent monitor",
+    "start": "eve start --agent assistant",
+    "start:monitor": "eve start --agent monitor --port 3001",
+    "deploy": "eve deploy --agent assistant",
+    "eval": "eve eval --agent assistant",
+    "typecheck": "tsc"
+  },
+  "dependencies": {
+    "@ai-sdk/google": "^4.0.67",
+    "@ai-sdk/openai": "^4.0.65",
+    "@toon-format/toon": "^4.1.1",
+    "@vercel/connect": "1.0.0",
+    "ai": "^7.0.93",
+    "eve": "^0.53.1",
+    "zod": "4.5.4"
+  },
+  "devDependencies": {
+    "@types/node": "24.x",
+    "typescript": "7.0.2"
   },
   "engines": {
     "node": "24.x"

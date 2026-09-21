@@ -1,5 +1,5 @@
 import { defineAgent, defineDynamic } from "eve";
-import { resolveModel } from "./lib/models";
+import { resolveModel } from "#shared/models";
 
 // El orquestador rutea, consulta telemetría y delega: tarea liviana, tier
 // medium. El razonamiento pesado vive en los planners (tier high).

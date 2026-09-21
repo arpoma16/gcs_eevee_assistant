@@ -1,5 +1,5 @@
 import { defineAgent, defineDynamic } from "eve";
-import { resolveModel } from "../../lib/models";
+import { resolveModel } from "#shared/models";
 
 // Planificación es la tarea de razonamiento más pesada del sistema (capability:
 // high en multiuav_gcs): geometría 3D, coste de rutas y reparación iterativa

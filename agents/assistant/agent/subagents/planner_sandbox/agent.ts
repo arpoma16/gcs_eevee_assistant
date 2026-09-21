@@ -1,5 +1,5 @@
 import { defineAgent, defineDynamic } from "eve";
-import { resolveModel } from "../../lib/models";
+import { resolveModel } from "#shared/models";
 
 export default defineAgent({
   description:
