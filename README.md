@@ -18,6 +18,7 @@ agente piensa y decide; el GCS ejecuta.
 | [`docs/tools.md`](docs/tools.md) | MCP real del GCS: transporte, inventario de tools, allowlist por agente, aprobación humana. |
 | [`docs/delegation.md`](docs/delegation.md) | Delegación asíncrona al planner y camino de vuelta del `missionPlanId`. |
 | [`docs/sandbox.md`](docs/sandbox.md) | Sandbox Python: para qué existe y el pipeline de waypoints (todavía sin conectar). |
+| [`docs/debugging.md`](docs/debugging.md) | Ver un subagente en vivo: flags de la TUI, entrar al sandbox mientras corre, seguir su stream por API. |
 
 ## Estructura
 
