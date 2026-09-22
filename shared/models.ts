@@ -86,12 +86,16 @@ const CATALOG: Record<Provider, ProviderEntry> = {
     requires: "OPENAI_API_KEY",
     models: {
       high: "gpt-5.1",
-      // Ídem: mismo id en los tres tiers hasta confirmar qué modelos más
-      // baratos tenés habilitados en la cuenta.
-      medium: "gpt-5.1",
-      low: "gpt-5.1",
+      medium: "gpt-5-mini",
+      low: "gpt-5-nano",
     },
     build: (modelId) => openai(modelId),
+    // Vamos directo contra la API de OpenAI (no Vercel AI Gateway), así que
+    // no hay catálogo del que eve pueda resolver esto solo — mismo motivo
+    // que en llamacpp arriba. Los tres ids de esta familia (gpt-5.1,
+    // gpt-5-mini, gpt-5-nano) comparten 400k de context window según la doc
+    // oficial: https://developers.openai.com/api/docs/models/gpt-5.1
+    contextWindowTokens: () => 400_000,
   },
 };
 

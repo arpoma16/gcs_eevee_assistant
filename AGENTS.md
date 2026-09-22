@@ -50,6 +50,14 @@ import { resolveModel } from "#shared/models";
 
 Switch provider with `EVE_PROVIDER`, or override one tier's model id with `EVE_MODEL_HIGH`, `EVE_MODEL_MEDIUM` or `EVE_MODEL_LOW`.
 
+Any `google` or `openai` model id (catalog entry or `EVE_MODEL_*` override) must exist in Vercel AI Gateway's own catalog, not just at the provider. Gateway resolves `modelContextWindowTokens` by looking the id up in its catalog; an id the provider serves but Gateway hasn't listed (e.g. a dated OpenAI snapshot like `gpt-5.1-2025-11-13`, or a shorthand Gateway never published like `gpt-5.1`) fails at session start with `MODEL_SELECTION_FAILED: ... did not provide context window metadata`. Verify an id before using it:
+
+```sh
+curl -fsSL https://ai-gateway.vercel.sh/v1/models | jq '.data[] | select(.id | startswith("openai/")) | .id'
+```
+
+Swap the `startswith` prefix for `"google/"` to check the other provider. Only `llamacpp` is exempt — it's not on Gateway, which is why its `CATALOG` entry sets `contextWindowTokens` explicitly instead (see `shared/models.ts`).
+
 Telemetry providers live in `agents/<name>/agent/instrumentation/`, one file per provider. A flat `instrumentation.ts` is from an older eve and fails service startup.
 
 ## Read the docs before writing code
