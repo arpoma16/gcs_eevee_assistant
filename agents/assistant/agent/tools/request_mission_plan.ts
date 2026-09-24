@@ -77,6 +77,29 @@ async function resolveBriefing(
 }
 
 /**
+ * Copies a value into a plain object literal of THIS module's realm.
+ *
+ * `input` here has crossed an await inside a `"use workflow"` function, and
+ * eve's durable-execution runtime rehydrates it from persisted state on
+ * replay. The rehydrated objects are structurally identical (same own
+ * properties) but come from a different V8 realm, so `Object.getPrototypeOf`
+ * on them is never `===` this realm's `Object.prototype`. `@toon-format/toon`
+ * detects plain objects by that exact identity check and silently encodes
+ * anything that fails it as `null` — which is how a real target/device
+ * turned into `[1]: null` in the planner's briefing. Spreading rebuilds the
+ * object with this realm's `Object` constructor, which fixes the identity
+ * check without changing its shape.
+ */
+function toPlainObject<T extends object>(value: T, label: string): T {
+  if (value === null || typeof value !== "object") {
+    throw new Error(
+      `Cannot build the identifier briefing: expected an object for ${label}, got ${JSON.stringify(value)}.`,
+    );
+  }
+  return { ...value };
+}
+
+/**
  * Briefing for the pipeline planner: identifiers and intent only. It
  * materializes the geometry into its own sandbox with `prepare_mission_input`,
  * so shipping the XYZ here would only burn context on data it re-fetches.
@@ -91,15 +114,20 @@ function formatIdentifierBriefing(
   },
   briefing: Briefing,
 ): string {
+  const targets = input.targets.map((target, i) => toPlainObject(target, `targets[${i}]`));
+  const selected_devices = input.selected_devices.map((device, i) =>
+    toPlainObject(device, `selected_devices[${i}]`),
+  );
+
   return `Execute the MISSION PLANNING SEQUENCE for solve the user request
 ${input.user_request} using a ${input.mission_strategy} strategy following the description: ${input.mission_strategy_description}.
 
 ## global_origin_coordinates
 ${JSON.stringify(briefing.global_origin)}
 ## targets (pass these to prepare_mission_input)
-${encode(input.targets)}
+${encode(targets)}
 ## devices (pass these to prepare_mission_input)
-${encode(input.selected_devices)}`;
+${encode(selected_devices)}`;
 }
 
 /** The exact section layout the planner's Step 1 reads. */

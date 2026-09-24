@@ -21,7 +21,43 @@ npx eve dev --agent assistant --subagents full --tools full --logs sandbox
 Referencia completa de modos (`full` \| `collapsed` \| `auto-collapsed` \|
 `hidden`) en `node_modules/eve/docs/reference/cli.md`, sección `eve dev`.
 
-## 2. Meterse al sandbox mientras está corriendo
+## 2. Leer los traces de una sesión
+
+Los traces son los spans OTLP de la sesión (turnos, tool calls, subagentes),
+persistidos en `.eve/traces/`:
+
+```bash
+npx eve traces ls
+npx eve traces <traceid> --verbose
+```
+
+Si el trace es muy largo para leerlo en la terminal, redirigilo a un archivo:
+
+```bash
+npx eve traces <traceid> --agent assistant --verbose > /tmp/trace.txt
+```
+
+## 3. Leer los logs de diagnóstico
+
+Los logs son otra cosa: stderr/stdout del proceso `eve dev` (incluye
+`console.log` del sandbox, rebuilds y errores de workflow), persistidos en
+`.eve/logs/`:
+
+```bash
+npx eve logs ls
+npx eve logs <logid>
+```
+
+## 4. Limpiar `.eve/logs` y `.eve/traces`
+
+Ambos directorios acumulan ruido entre corridas. Con `eve dev` parado, se
+pueden borrar sin problema — se regeneran solos en la próxima sesión:
+
+```bash
+rm -rf .eve/logs .eve/traces
+```
+
+## 5. Meterse al sandbox mientras está corriendo
 
 Ni `agent/sandbox/sandbox.ts` ni
 [`agent/subagents/planner_sandbox/sandbox/sandbox.ts`](../agent/subagents/planner_sandbox/sandbox/sandbox.ts)
@@ -54,7 +90,7 @@ Si el backend resuelto fuera otro:
 - **just-bash**: sin proceso real, filesystem virtual bajo
   `.eve/sandbox-cache/` en el host — se puede leer directo del disco.
 
-## 3. Seguir el stream del subagente por API
+## 6. Seguir el stream del subagente por API
 
 Cada delegación abre su propio stream de sesión hija. El evento
 `subagent.called` en el stream del padre trae `data.childSessionId`
@@ -68,7 +104,7 @@ GET /eve/v1/session/:childSessionId/stream
 Es lo que usaría `client/` para mostrar la planificación en vivo en la UI del
 operador, en vez de solo el resultado final vía task notification.
 
-## 4. Correr el pipeline fuera del agente
+## 7. Correr el pipeline fuera del agente
 
 Para reproducir un fallo del pipeline sin levantar ningún sandbox ni modelo,
 ver "Correr el pipeline a mano" en [`docs/sandbox.md`](sandbox.md) — usa los
