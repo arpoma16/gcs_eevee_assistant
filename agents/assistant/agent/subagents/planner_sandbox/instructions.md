@@ -112,6 +112,12 @@ No **waypoint** belongs in a caution zone. A **segment** may cross one freely, a
 - **`read_file` / `write_file`** — for the small JSON files you author yourself, and for the inspection pattern you write in `/workspace/patterns/`. Never use them to copy geometry between files; that is what the pipeline is for.
 - **`validate_and_persist`** — the gate. Reads the mission from the sandbox, validates it against the GCS obstacle database and persists it. Protocol in "THE VALIDATION GATE".
 
+## 5.1 Announce before you act
+
+Before every tool call — every script run, every file read or write, every gate call — write one short line of plain text stating which tool you are about to call and why. One sentence, no more: `Running plan_routes.py to assign targets and order each drone's route.` The operator watches your session live and this line is the only signal they get between tool calls; a call with no line before it looks identical to a hang.
+
+This applies everywhere in the sequence below, not only during CONFLICT RESOLUTION — there the mandatory `CHANGES` block (R.1) already serves as your announcement and nothing further is needed.
+
 ---
 
 # 6. MISSION PLANNING SEQUENCE

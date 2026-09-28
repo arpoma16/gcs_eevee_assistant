@@ -122,8 +122,6 @@ function formatIdentifierBriefing(
   return `Execute the MISSION PLANNING SEQUENCE for solve the user request
 ${input.user_request} using a ${input.mission_strategy} strategy following the description: ${input.mission_strategy_description}.
 
-## global_origin_coordinates
-${JSON.stringify(briefing.global_origin)}
 ## targets (pass these to prepare_mission_input)
 ${encode(targets)}
 ## devices (pass these to prepare_mission_input)
