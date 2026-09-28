@@ -9,7 +9,7 @@ This project is an **eve workspace**: every directory under `agents/<name>/` tha
 
 Schedules and channels are root-only in eve, which is why the monitor is its own root agent and not a subagent of the assistant.
 
-eve requires **Node.js >= 24** and refuses to start on anything older; `.nvmrc` pins it. Each agent needs a `.env` at its own app root, because eve loads the app root's `.env` and never looks upward. Both are gitignored symlinks to the repo-root `.env`, so recreate them after a fresh clone:
+eve requires **Node.js >= 24** and refuses to start on anything older; `.nvmrc` pins it. **`nvm`'s shell auto-switch hook does not apply to non-interactive Bash tool calls in this session**, and `nvm` itself is a shell function, not a binary — a fresh non-interactive shell doesn't have it until sourced. Before running any `npm run ...`, `npx eve ...`, or other node/npm command in this repo, chain: `source "$NVM_DIR/nvm.sh" && nvm use && npm run ...`. Do not assume the active `node` matches `.nvmrc`. Each agent needs a `.env` at its own app root, because eve loads the app root's `.env` and never looks upward. Both are gitignored symlinks to the repo-root `.env`, so recreate them after a fresh clone:
 
 ```sh
 ln -s ../../.env agents/assistant/.env
@@ -59,6 +59,14 @@ curl -fsSL https://ai-gateway.vercel.sh/v1/models | jq '.data[] | select(.id | s
 Swap the `startswith` prefix for `"google/"` to check the other provider. Only `llamacpp` is exempt — it's not on Gateway, which is why its `CATALOG` entry sets `contextWindowTokens` explicitly instead (see `shared/models.ts`).
 
 Telemetry providers live in `agents/<name>/agent/instrumentation/`, one file per provider. A flat `instrumentation.ts` is from an older eve and fails service startup.
+
+## `"use workflow"` gotcha: data crossing an `await` is cross-realm
+
+A value read from a workflow tool's `input` (or from anything else scoped to a `"use workflow"` function) **after** an `await` on a `"use step"` call is not the same object identity as before: eve's durable-execution runtime rehydrates it from persisted state on replay, from a different V8 realm than the module. It is still structurally correct — `JSON.stringify`, `Array.isArray` and manual field access all see the real data — but `Object.getPrototypeOf(x) === Object.prototype` is `false` for it, because that `Object.prototype` is a different object in memory.
+
+This silently breaks any library that detects "is this a plain object" by that identity check instead of structurally. `@toon-format/toon`'s `encode()` is one: its `isPlainObject` (`node_modules/@toon-format/toon/dist/index.mjs`) uses exactly `Object.getPrototypeOf(value) === Object.prototype`, fails it, and **encodes the value as `null` with no error** — an array of real objects becomes `[1]: null` in the output string, which downstream code (a subagent reading its briefing) has no way to tell apart from a real gap in the data.
+
+The fix is not a language feature to avoid — the workaround is to rebuild affected values into a fresh plain object of the current realm before handing them to a strict identity-checking library, e.g. `{ ...value }` per element. See `toPlainObject()` in `agents/assistant/agent/tools/request_mission_plan.ts` for the pattern (used before every `encode()` call on data that crossed the `await resolveBriefing(...)` step). Prefer this any time a `"use workflow"` function calls `encode()`, or hands post-`await` data to another library that might do its own object-shape sniffing, on values read after a step boundary.
 
 ## Read the docs before writing code
 
@@ -115,6 +123,7 @@ It reaches eve through a same-origin dev proxy (`vite.config.ts`), so no `host` 
 | client command | pairs with (repo root) | proxy target | `VITE_EVE_AGENT` |
 | --- | --- | --- | --- |
 | `npm run dev` | `npm run dev:assistant` | `:2000` | unset → `/eve/v1/*` |
+| `npm run dev:planner_sandbox` | `npm run dev:planner_sandbox` | `:2002` | unset → `/eve/v1/*` |
 | `npm run dev:all` | `npm run dev:all` | `:3300` | `assistant` → `/eve/assistant/v1/*` |
 
 `EVE_DEV_URL` overrides the proxy target; `VITE_EVE_AGENT` feeds `useEveAgent({ agent })`, which must never be combined with `host`.
@@ -137,7 +146,7 @@ cd ../llm_planner_gcs/mcp_server && npx tsx src/index.ts http
 npm run dev:assistant
 
 # 3. test client on :5173
-cd client && npm run dev
+npm run dev:client   # or: cd client && npm run dev
 ```
 
 Layout:
