@@ -6,9 +6,24 @@ export interface ThreadSummary {
   updatedAt: number;
 }
 
+/** One `planner_sandbox`-style delegation captured from a `subagent.called` event. */
+export interface DelegatedSubagentRecord {
+  sessionId: string;
+  name: string;
+  startedAt: number;
+}
+
 export interface SavedThreadChat {
   session?: ClientSessionState;
   events?: readonly MessageStreamEvent[];
+  /**
+   * Every child session `assistant` has delegated to in this thread, oldest
+   * first. A retry always starts a brand-new session (eve never reuses one
+   * without an explicit `agentId`), so this can grow past one entry — kept
+   * around so a past attempt stays reachable after the page reloads, instead
+   * of paying for a fresh delegation just to look at it again.
+   */
+  subagents?: readonly DelegatedSubagentRecord[];
 }
 
 const THREADS_KEY = "eve-chat-threads";

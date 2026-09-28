@@ -1,7 +1,10 @@
 import { useState } from "react";
+import { CssBaseline, List, ListItemButton, ListItemText, Stack, ThemeProvider, Typography } from "@mui/material";
+import AddIcon from "@mui/icons-material/Add";
+import Button from "@mui/material/Button";
 import Chat from "./Chat";
 import { createThread, loadThreads, saveThreads, type ThreadSummary } from "./lib/threads";
-import "./App.css";
+import theme from "./theme";
 
 function App() {
   const [threads, setThreads] = useState<ThreadSummary[]>(() => {
@@ -36,30 +39,41 @@ function App() {
   const sorted = [...threads].sort((a, b) => b.updatedAt - a.updatedAt);
 
   return (
-    <div className="app">
-      <aside className="sidebar">
-        <button type="button" className="new-chat" onClick={handleNewChat}>
-          + Nuevo chat
-        </button>
-        <nav className="threads">
-          {sorted.map((thread) => (
-            <button
-              key={thread.id}
-              type="button"
-              className={`thread ${thread.id === activeId ? "active" : ""}`}
-              onClick={() => setActiveId(thread.id)}
-            >
-              {thread.title}
-            </button>
-          ))}
-        </nav>
-      </aside>
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
+      <Stack direction="row" sx={{ flex: 1, minHeight: 0 }}>
+        <Stack
+          component="aside"
+          sx={{ width: 220, flexShrink: 0, minHeight: 0, borderRight: 1, borderColor: "divider", p: 1.5, gap: 1.5 }}
+        >
+          <Button variant="outlined" startIcon={<AddIcon />} onClick={handleNewChat} sx={{ justifyContent: "flex-start" }}>
+            Nuevo chat
+          </Button>
+          <List sx={{ flex: 1, minHeight: 0, overflowY: "auto", py: 0 }}>
+            {sorted.map((thread) => (
+              <ListItemButton
+                key={thread.id}
+                selected={thread.id === activeId}
+                onClick={() => setActiveId(thread.id)}
+                sx={{ borderRadius: 1 }}
+              >
+                <ListItemText
+                  primary={thread.title}
+                  slotProps={{ primary: { noWrap: true } }}
+                />
+              </ListItemButton>
+            ))}
+          </List>
+        </Stack>
 
-      <main className="main">
-        <h1>eve • gcs_eevee_assistant</h1>
-        <Chat key={activeId} threadId={activeId} onThreadUpdate={handleThreadUpdate} />
-      </main>
-    </div>
+        <Stack component="main" sx={{ flex: 1, minWidth: 0, minHeight: 0, px: 2.5 }}>
+          <Typography variant="h6" sx={{ my: 2 }}>
+            eve • gcs_eevee_assistant
+          </Typography>
+          <Chat key={activeId} threadId={activeId} onThreadUpdate={handleThreadUpdate} />
+        </Stack>
+      </Stack>
+    </ThemeProvider>
   );
 }
 

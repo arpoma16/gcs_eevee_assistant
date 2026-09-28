@@ -1,7 +1,19 @@
 import { useState } from "react";
+import { Box, Button, Stack, Tab, Tabs, Typography } from "@mui/material";
 import { useEveAgent } from "eve/react";
-import { loadThreadData, saveThreadData, titleFromMessage, type ThreadSummary } from "./lib/threads";
-import "./Chat.css";
+import { ChatBox } from "@mui/x-chat";
+import { useChatStatus, useChatActions } from "@mui/x-chat/headless";
+import { useEveAgentChatAdapter } from "./lib/useEveAgentChatAdapter";
+import ApprovalToolPart from "./ApprovalToolPart";
+import {
+  loadThreadData,
+  saveThreadData,
+  titleFromMessage,
+  type DelegatedSubagentRecord,
+  type ThreadSummary,
+} from "./lib/threads";
+import SubagentPanel from "./SubagentPanel";
+import CopyButton from "./CopyButton";
 
 interface ChatProps {
   threadId: string;
@@ -10,8 +22,12 @@ interface ChatProps {
 
 function Chat({ threadId, onThreadUpdate }: ChatProps) {
   const [saved] = useState(() => loadThreadData(threadId));
-  const [cancelling, setCancelling] = useState(false);
-  const [cancelError, setCancelError] = useState<string | null>(null);
+  // Every delegation this thread has made, oldest first — a retry always
+  // opens a brand-new session (eve never reuses one without an explicit
+  // `agentId`), so this list only grows. Persisted so a past attempt is
+  // still reachable after a reload without paying for a fresh delegation.
+  const [subagents, setSubagents] = useState<readonly DelegatedSubagentRecord[]>(() => saved.subagents ?? []);
+  const [openSessionId, setOpenSessionId] = useState<string | null>(() => saved.subagents?.at(-1)?.sessionId ?? null);
 
   const agent = useEveAgent({
     // Vacío (o ausente) apunta a las rutas same-origin /eve/v1/* que sirve
@@ -26,107 +42,114 @@ function Chat({ threadId, onThreadUpdate }: ChatProps) {
       saveThreadData(threadId, { ...loadThreadData(threadId), session });
     },
     onFinish(snapshot) {
-      saveThreadData(threadId, { events: snapshot.events, session: snapshot.session });
+      // Merge, don't replace: a plain `{events, session}` write here clobbers
+      // whatever `subagents` the `subagent.called` handler below already
+      // persisted mid-turn, since `saveThreadData` overwrites the whole
+      // record. A turn finishing is exactly when a delegation has just
+      // settled, so this was silently dropping the panel's history on every
+      // reload.
+      saveThreadData(threadId, { ...loadThreadData(threadId), events: snapshot.events, session: snapshot.session });
       onThreadUpdate(threadId, {});
+    },
+    // `subagent.called` carries the delegated child's sessionId as soon as eve
+    // starts it — well before the parent's background tool call ever settles.
+    // See docs/debugging.md ("Seguir el stream del subagente por API") for the
+    // same id via `eve traces` when debugging outside the browser.
+    //
+    // This stays on `onEvent` (not routed through the MUI X chat adapter):
+    // the event isn't part of any message's content, so there's no chunk in
+    // MUI X's vocabulary it naturally maps to.
+    onEvent(event) {
+      if (event.type === "subagent.called") {
+        const record: DelegatedSubagentRecord = {
+          sessionId: event.data.childSessionId,
+          name: event.data.name,
+          startedAt: Date.now(),
+        };
+        setSubagents((prev) => {
+          if (prev.some((s) => s.sessionId === record.sessionId)) return prev;
+          const next = [...prev, record];
+          saveThreadData(threadId, { ...loadThreadData(threadId), subagents: next });
+          return next;
+        });
+        setOpenSessionId(record.sessionId);
+      }
     },
   });
 
-  const isBusy = agent.status === "submitted" || agent.status === "streaming";
-  const isResuming = agent.status === "resuming";
-
-  async function handleCancel() {
-    setCancelling(true);
-    setCancelError(null);
-    try {
-      await agent.cancel();
-    } catch (error) {
-      setCancelError(error instanceof Error ? error.message : "No se pudo cancelar el turno.");
-    } finally {
-      setCancelling(false);
-    }
-  }
-
-  const pendingRequests = agent.data.messages
-    .flatMap((message) => message.parts)
-    .flatMap((part) => {
-      if (part.type !== "dynamic-tool" || part.state !== "approval-requested") return [];
-      const request = part.toolMetadata?.eve?.inputRequest;
-      return request ? [request] : [];
-    });
+  const { adapter, messages, getInputRequest } = useEveAgentChatAdapter(agent, {
+    onFirstSend: (text) => onThreadUpdate(threadId, { title: titleFromMessage(text) }),
+  });
 
   return (
-    <section className="chat">
-      <div className="messages">
-        {agent.data.messages.length === 0 ? (
-          <p className="empty">Empezá la conversación…</p>
-        ) : (
-          agent.data.messages.map((message) => (
-            <article key={message.id} className={`message ${message.role}`}>
-              <header>{message.role}</header>
-              {message.parts.map((part, index) =>
-                part.type === "text" ? <p key={index}>{part.text}</p> : null,
-              )}
-            </article>
-          ))
-        )}
-      </div>
+    <Stack direction="row" sx={{ flex: 1, minHeight: 0 }}>
+      <Stack sx={{ flex: 1, minWidth: 0 }}>
+        {agent.session ? (
+          <Stack direction="row" spacing={1} sx={{ alignItems: "center", px: 2, py: 1, borderBottom: 1, borderColor: "divider" }}>
+            <Typography variant="caption" color="text.secondary">
+              assistant session: {agent.session.sessionId}
+            </Typography>
+            <CopyButton text={agent.session.sessionId} />
+          </Stack>
+        ) : null}
 
-      {pendingRequests.map((request) => (
-        <fieldset key={request.requestId} className="approval">
-          <legend>
-            {request.kind === "tool-approval"
-              ? "Approval required"
-              : request.kind === "question"
-                ? "Question"
-                : "Session limit"}
-          </legend>
-          <p>{request.prompt}</p>
-          {request.options?.map((option) => (
-            <button
-              key={option.id}
-              type="button"
-              onClick={() =>
-                void agent.respond([{ requestId: request.requestId, optionId: option.id }])
-              }
-            >
-              {option.label}
-            </button>
-          ))}
-        </fieldset>
-      ))}
+        <ChatBox
+          adapter={adapter}
+          messages={messages}
+          onMessagesChange={() => {
+            /* controlled: useEveAgent stays the source of truth, this is a required no-op */
+          }}
+          onError={(error) => console.error("[chat]", error.source, error.message)}
+          partRenderers={{
+            "dynamic-tool": (props) => <ApprovalToolPart {...props} getInputRequest={getInputRequest} respond={agent.respond} />,
+          }}
+          features={{ conversationHeader: false, helperText: false }}
+          sx={{ flex: 1, minHeight: 0, position: "relative" }}
+        >
+          <CancelTurnButton />
+        </ChatBox>
+      </Stack>
 
-      {isBusy ? (
-        <div className="status">
-          <span>{agent.status === "streaming" ? "Respondiendo…" : "Enviando…"}</span>
-          <button type="button" onClick={() => void handleCancel()} disabled={cancelling}>
-            {cancelling ? "Cancelando…" : "Cancelar"}
-          </button>
-        </div>
+      {subagents.length > 0 ? (
+        <Stack sx={{ width: 420, borderLeft: 1, borderColor: "divider", minHeight: 0 }}>
+          <Tabs
+            value={openSessionId ?? false}
+            onChange={(_, value) => setOpenSessionId(value)}
+            variant="scrollable"
+            scrollButtons="auto"
+          >
+            {subagents.map((s) => (
+              <Tab key={s.sessionId} value={s.sessionId} label={`${s.name} · ${new Date(s.startedAt).toLocaleTimeString()}`} title={s.sessionId} />
+            ))}
+          </Tabs>
+
+          {openSessionId ? (
+            <SubagentPanel
+              key={openSessionId}
+              sessionId={openSessionId}
+              subagentName={subagents.find((s) => s.sessionId === openSessionId)?.name ?? "subagent"}
+              onClose={() => setOpenSessionId(null)}
+            />
+          ) : (
+            <Box sx={{ p: 2 }}>
+              <Typography color="text.secondary">Elegí una delegación arriba para verla.</Typography>
+            </Box>
+          )}
+        </Stack>
       ) : null}
+    </Stack>
+  );
+}
 
-      {cancelError ? <p className="error">{cancelError}</p> : null}
-      {agent.error ? <p className="error">{agent.error.message}</p> : null}
-
-      <form
-        onSubmit={(event) => {
-          event.preventDefault();
-          const form = new FormData(event.currentTarget);
-          const message = String(form.get("message") ?? "").trim();
-          if (message.length === 0 || isResuming) return;
-
-          if (agent.data.messages.length === 0) {
-            onThreadUpdate(threadId, { title: titleFromMessage(message) });
-          }
-          void agent.send(message, isBusy ? { turnPolicy: "steer" } : undefined);
-          event.currentTarget.reset();
-        }}
-      >
-        <input name="message" disabled={isResuming} placeholder="Message the agent…" autoFocus />
-        <button type="submit" disabled={isResuming}>
-          Send
-        </button>
-      </form>
-    </section>
+/** `ChatBox` renders no stop button of its own (see MUI X Chat docs, Building an adapter §3) — this one lives as a `ChatBox` child so it can reach `useChatStatus`/`useChatActions`. */
+function CancelTurnButton() {
+  const { isStreaming } = useChatStatus();
+  const { stopStreaming } = useChatActions();
+  if (!isStreaming) return null;
+  return (
+    <Button size="small" onClick={() => stopStreaming()} sx={{ position: "absolute", top: 8, right: 8, zIndex: 1 }}>
+      Cancelar
+    </Button>
   );
 }
 

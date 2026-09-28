@@ -6,11 +6,17 @@
   "scripts": {
     "dev": "vite",
     "dev:all": "EVE_DEV_URL=http://localhost:3300 VITE_EVE_AGENT=assistant vite",
+    "dev:planner_sandbox": "EVE_DEV_URL=http://localhost:2002 vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview"
   },
   "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
+    "@mui/icons-material": "^9.4.0",
+    "@mui/material": "^9.4.0",
+    "@mui/x-chat": "^9.0.0-alpha.18",
     "eve": "0.64.1",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
