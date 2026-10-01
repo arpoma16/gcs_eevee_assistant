@@ -13,10 +13,11 @@ it does not do the heavy reasoning itself. That lives in its two `subagents/`, b
 Which one gets called is a mission-shape decision made in `tools/request_mission_plan.ts`, not a model
 preference — read that file before assuming either planner is dead code.
 
-## `request_mission_plan.ts` is a background workflow tool
+## `request_mission_plan.ts` is a task workflow tool
 
-`defineWorkflowTool({ execution: "background" })` that runs `await ctx.agent(planner_sandbox, ...)` (or
-`planner`) inside a `"use workflow"` function. Two things to know before touching it:
+`defineWorkflowTool({ task(input, ctx) { ... } })` (eve >= 0.69 replaced `execution: "background"` with
+`task`) that runs `await ctx.agent(planner_sandbox).send(...)` (or `planner`) and reads
+`response.result()` inside a `"use workflow"` function. Two things to know before touching it:
 
 - **Cross-realm data after `await`.** Anything read from `input` and used after the `await` on the
   subagent call is rehydrated by eve's durable-execution runtime and fails identity checks like

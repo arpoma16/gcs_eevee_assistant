@@ -29,20 +29,24 @@ function SubagentPanel({ sessionId, subagentName, onClose }: SubagentPanelProps)
 
   const { adapter, messages, getInputRequest } = useEveAgentChatAdapter(agent, {
     confirmCancel: () =>
-      // request_mission_plan is blocked in `await ctx.agent(planner_sandbox, ...)`
-      // for the whole delegation: cancelling this child's turn resolves that
-      // await and ends the assistant's turn too — eve's documented behavior,
-      // not a bug. "Cerrar" (onClose) is the safe way to just stop watching
-      // without cancelling anything.
+      // request_mission_plan (a `task` workflow tool) waits in
+      // `await response.result()` on its `ctx.agent(planner_sandbox).send(...)`
+      // for the whole delegation. Cancelling this child's turn resolves that
+      // await with `status: "waiting"` and no `data` (eve's documented shape
+      // for a cancelled turn), so the tool throws and the task settles as
+      // failed. The assistant reads that failure in its `task.result` and its
+      // turn keeps going — since eve 0.69 the cancel no longer ends it.
+      // "Cerrar" (onClose) is the safe way to just stop watching without
+      // cancelling anything.
       //
       // The sandbox is safe either way: it's owned by the SESSION, not the
-      // turn, and eve's turn-cancellation path never touches it (confirmed by
-      // reading node_modules/eve/dist/src/{harness,execution}/*cancel* — none
-      // reference the sandbox). Files stay put and this same panel keeps
-      // working afterward.
+      // turn, and eve's turn-cancellation path never tears it down (confirmed
+      // on eve 0.69 by reading node_modules/eve/dist/src/{harness,execution}/*cancel*
+      // — the only sandbox reference stages attachments into it). Files stay
+      // put and this same panel keeps working afterward.
       window.confirm(
-        "Esto corta la generación acá Y termina el turno del assistant que lo delegó (eve propaga la cancelación " +
-          "al padre). El sandbox NO se destruye — los archivos siguen ahí y podés seguir usando este panel " +
+        "Esto corta la generación acá y el pedido de plan del assistant queda como fallido (el assistant recibe " +
+          "el error y sigue su turno). El sandbox NO se destruye — los archivos siguen ahí y podés seguir usando este panel " +
           '(incluido "Ver archivos del sandbox") después de cancelar.\n\n' +
           'Si solo querés dejar de mirar sin cortar nada, usá "Cerrar" en vez de esto.',
       ),

@@ -23,8 +23,8 @@ interface ChatProps {
 function Chat({ threadId, onThreadUpdate }: ChatProps) {
   const [saved] = useState(() => loadThreadData(threadId));
   // Every delegation this thread has made, oldest first — a retry always
-  // opens a brand-new session (eve never reuses one without an explicit
-  // `agentId`), so this list only grows. Persisted so a past attempt is
+  // opens a brand-new session (eve never reuses one: each `ctx.agent(name)`
+  // call opens a new session), so this list only grows. Persisted so a past attempt is
   // still reachable after a reload without paying for a fresh delegation.
   const [subagents, setSubagents] = useState<readonly DelegatedSubagentRecord[]>(() => saved.subagents ?? []);
   const [openSessionId, setOpenSessionId] = useState<string | null>(() => saved.subagents?.at(-1)?.sessionId ?? null);
@@ -43,7 +43,7 @@ function Chat({ threadId, onThreadUpdate }: ChatProps) {
     },
     onFinish(snapshot) {
       // Merge, don't replace: a plain `{events, session}` write here clobbers
-      // whatever `subagents` the `subagent.called` handler below already
+      // whatever `subagents` the `agent.started` handler below already
       // persisted mid-turn, since `saveThreadData` overwrites the whole
       // record. A turn finishing is exactly when a delegation has just
       // settled, so this was silently dropping the panel's history on every
@@ -51,8 +51,8 @@ function Chat({ threadId, onThreadUpdate }: ChatProps) {
       saveThreadData(threadId, { ...loadThreadData(threadId), events: snapshot.events, session: snapshot.session });
       onThreadUpdate(threadId, {});
     },
-    // `subagent.called` carries the delegated child's sessionId as soon as eve
-    // starts it — well before the parent's background tool call ever settles.
+    // `agent.started` carries the delegated child's sessionId as soon as
+    // `ctx.agent(...)` opens it — well before the parent's task ever settles.
     // See docs/debugging.md ("Seguir el stream del subagente por API") for the
     // same id via `eve traces` when debugging outside the browser.
     //
@@ -60,9 +60,9 @@ function Chat({ threadId, onThreadUpdate }: ChatProps) {
     // the event isn't part of any message's content, so there's no chunk in
     // MUI X's vocabulary it naturally maps to.
     onEvent(event) {
-      if (event.type === "subagent.called") {
+      if (event.type === "agent.started") {
         const record: DelegatedSubagentRecord = {
-          sessionId: event.data.childSessionId,
+          sessionId: event.data.sessionId,
           name: event.data.name,
           startedAt: Date.now(),
         };

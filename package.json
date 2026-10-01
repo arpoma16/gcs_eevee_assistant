@@ -29,7 +29,7 @@
     "@toon-format/toon": "^4.1.1",
     "@vercel/connect": "2.2.0",
     "ai": "^7.0.105",
-    "eve": "0.64.1",
+    "eve": "file:../../eve-upstream/eve-0.69.0.tgz",
     "zod": "4.5.4"
   },
   "devDependencies": {

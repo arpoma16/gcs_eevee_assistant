@@ -17,7 +17,7 @@
     "@mui/icons-material": "^9.4.0",
     "@mui/material": "^9.4.0",
     "@mui/x-chat": "^9.0.0-alpha.18",
-    "eve": "0.64.1",
+    "eve": "file:../../../eve-upstream/eve-0.69.0.tgz",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },

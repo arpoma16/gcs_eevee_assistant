@@ -130,8 +130,8 @@ if you touch it.
 
 ## Reaching the assistant
 
-Called from `agents/assistant/agent/tools/request_mission_plan.ts` via `await ctx.agent(planner_sandbox, ...)`
-inside a background workflow tool. See the parent's `AGENTS.md` for the currently-open upstream eve bug
+Called from `agents/assistant/agent/tools/request_mission_plan.ts` via `await ctx.agent(planner_sandbox).send(...)`
+and `response.result()` inside a `task` workflow tool (eve >= 0.69 replaced `execution: "background"` with `task`). See the parent's `AGENTS.md` for the currently-open upstream eve bug
 (`docs/issue2.md`) affecting this exact dispatch path on the pinned eve version.
 
 ## Client UI: this subagent is the one wired into `SubagentPanel`
@@ -139,18 +139,22 @@ inside a background workflow tool. See the parent's `AGENTS.md` for the currentl
 Today `planner_sandbox` is the only subagent with a dedicated UI surface. The mechanism, for when this
 needs to be extended to `planner` or another future subagent:
 
-1. eve emits a `subagent.called` event carrying the delegated child's `sessionId` as soon as the
-   `ctx.agent(...)` call starts — `client/src/Chat.tsx` listens for it and opens a tab.
+1. eve emits an `agent.started` event carrying the delegated child's `sessionId` (plus `name`, `taskId`
+   and `callId`) as soon as `ctx.agent(...)` opens the child session on its first `send` —
+   `client/src/Chat.tsx` listens for it and opens a tab. (Before eve 0.69 this was `subagent.called`
+   with `childSessionId`; that event no longer exists.)
 2. `client/src/SubagentPanel.tsx` does **not** start a new session. It attaches to the already-running
    child session with `useEveAgent({ initialSession: { sessionId, streamIndex: 0 }, resume: true })`.
 3. `client/src/ApprovalToolPart.tsx` renders any HITL request (`ask_question`, session-limit prompts,
    tool approvals) inside that panel the same way the main chat does, falling back to MUI X's default
    renderer for plain approve/deny.
 4. **Cancellation semantics — read the comment at `client/src/SubagentPanel.tsx`'s `confirmCancel`
-   before changing this flow.** Cancelling the child's turn resolves the parent's blocking
-   `await ctx.agent(planner_sandbox, ...)` and ends the assistant's turn too — this is eve's documented
-   behavior, not a bug to fix. The sandbox itself is session-scoped, not turn-scoped, and survives
-   cancellation (verified by reading eve's cancel path in `node_modules/eve/dist/src/{harness,execution}/*cancel*`
+   before changing this flow.** Cancelling the child's turn resolves the parent's
+   `await response.result()` with `status: "waiting"` and no `data` (eve's documented shape for a
+   cancelled `ctx.agent` turn). `request_mission_plan` treats missing `data` as a failure and throws,
+   so the task settles as failed and the assistant reads that in its `task.result` — the assistant's
+   turn is no longer ended by it, unlike the pre-0.69 background flow. The sandbox itself is
+   session-scoped, not turn-scoped, and survives cancellation (verified on eve 0.69 by reading eve's cancel path in `node_modules/eve/dist/src/{harness,execution}/*cancel*`
    — none of it touches the sandbox). "Cerrar" (`onClose`) just stops watching without cancelling anything.
 5. "Ver archivos del sandbox" (`handleListFiles`) is a literal chat message asking the model to list
    `/workspace`, not a dedicated inspection API — there isn't one yet. Replace it if eve ships a native

@@ -42,6 +42,14 @@ const PLANNER_RESULT_SCHEMA = {
   required: ["status", "description"],
 } as const;
 
+type PlannerResult = {
+  status: string;
+  description: string;
+  missionPlanId?: number;
+  validationReport?: string;
+  totalCollisions?: number;
+};
+
 type Briefing = {
   global_origin: { lat: number; lng: number; alt: number };
   devices: unknown[];
@@ -157,7 +165,6 @@ export default defineWorkflowTool({
     "Do NOT call this tool without first gathering all required data through the appropriate tools. " +
     "Obstacles and coordinate conversion are resolved server-side — never send obstacles, never convert coordinates yourself. " +
     "The planner works asynchronously: this returns immediately and the plan arrives later.",
-  execution: "background",
   inputSchema: z.object({
     user_request: z.string().describe("The intent of the user request that led to this mission"),
     mission_strategy: z
@@ -179,7 +186,7 @@ export default defineWorkflowTool({
           "filters. NOT the full fleet: every device widens the mission bounding box and can get the plan rejected.",
       ),
   }),
-  async execute(input, ctx) {
+  async task(input, ctx) {
     "use workflow";
 
     if (input.targets_length !== input.targets.length) {
@@ -194,12 +201,15 @@ export default defineWorkflowTool({
     // a bad identifier can be reported back to whoever chose it, and the parent
     // is the one with the tools to fix it.
     const briefing = await resolveBriefing(input.targets, input.selected_devices);
-    const result = await ctx.agent(PLANNER, {
-      message: USES_PIPELINE
-        ? formatIdentifierBriefing(input, briefing)
-        : formatBriefing(input, briefing),
-      outputSchema: PLANNER_RESULT_SCHEMA,
-    });
+    const response = await ctx.agent(PLANNER).send(
+      USES_PIPELINE ? formatIdentifierBriefing(input, briefing) : formatBriefing(input, briefing),
+      { outputSchema: PLANNER_RESULT_SCHEMA, signal: ctx.abortSignal },
+    );
+    const { data, status, error } = await response.result();
+    if (status === "failed" || data === undefined) {
+      throw new Error(`The planner did not finish: ${error?.message ?? "no result returned"}`);
+    }
+    const result = data as PlannerResult;
 
     // The plan id is the only handle to the persisted mission, and the planner
     // has to copy it out of the gate's prose ("...with planID 42..."). That
