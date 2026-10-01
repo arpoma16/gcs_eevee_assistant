@@ -137,7 +137,7 @@ and run `python3 tools/assign.py --keep` to order each route without changing wh
 python3 tools/build_mission.py --speed <cruise_speed> --name "<short mission name>" --description "<one line>"
 ```
 
-Builds `data/mission.json` (format v3): takeoff, each block in order, landing. Every segment that cannot be flown straight gets `transit` waypoints from an A* search. If a segment has no possible detour it says why (`SIN DESVÍO POSIBLE ...: el origen dentro de zona prohibida por ...`) and leaves it straight for the validator to report.
+Builds `data/mission.json` (format v4: one task per route of `assignment.json`): takeoff, each block in order, landing. Every segment that cannot be flown straight gets `transit` waypoints from an A* search. If a segment has no possible detour it says why (`SIN DESVÍO POSIBLE ...: el origen dentro de zona prohibida por ...`) and leaves it straight for the validator to report.
 
 It aborts if a target is not covered, a block is assigned twice or not at all, or `depends_on` is broken. **Never edit `mission.json`**: it is rebuilt from scratch every time.
 
@@ -147,7 +147,7 @@ It aborts if a target is not covered, a block is assigned twice or not at all, o
 python3 tools/validate.py
 ```
 
-The same checks the gate runs: v3 structure, coverage of every target, `depends_on`, altitude floor and ceiling, geofence, and collisions on every segment. Exit 0 = valid. Fix anything it reports (CONFLICT RESOLUTION) **before** spending a gate call. Then re-read `request.md` and confirm the plan does what was asked.
+The same checks the gate runs: v4 structure, coverage of every target, `depends_on`, altitude floor and ceiling, geofence, and collisions on every segment. Exit 0 = valid. Fix anything it reports (CONFLICT RESOLUTION) **before** spending a gate call. Then re-read `request.md` and confirm the plan does what was asked.
 
 ---
 
@@ -164,7 +164,7 @@ Call `validate_and_persist` once `tools/validate.py` passes.
 
 # CONFLICT RESOLUTION
 
-Triggered by a finding from `tools/validate.py` or the gate. Each finding names the route (`task_id`), the segment (`tramo i→j`) with the tags at both ends, the code, the obstacle and the point. The full report is in `data/validation.json`, with a hint per code.
+Triggered by a finding from `tools/validate.py` or the gate. Each finding names the task (`task_id`), the segment (`tramo i→j`) with the tags at both ends, the code, the obstacle and the point. The full report is in `data/validation.json`, with a hint per code.
 
 **Repairs happen upstream, never in `mission.json`**: in `scripts/inspection.py` (what is inspected, how it is split into blocks), in `data/assignment.json` (who flies what, in which order), or in the `build_mission.py` arguments. Then re-run from the step you changed: inspection → assign → build → validate.
 

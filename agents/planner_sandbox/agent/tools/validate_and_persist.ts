@@ -26,7 +26,7 @@ const COLLISION_CODES = new Set(["clearance_target", "clearance_other"]);
 export default defineTool({
   description:
     "The validation gate. Runs the planner's own validator — a protected copy of tools/validate.py, not " +
-    "the one in /workspace — over /workspace/data/mission.json: v3 structure, coverage of every target, " +
+    "the one in /workspace — over /workspace/data/mission.json: v4 structure (tasks[]), coverage of every target, " +
     "depends_on, altitude floor and EU 2019/947 ceiling, geofence, and collisions (full model of the " +
     "targets being inspected, simple catalog geometry for everything else). When the mission is valid — " +
     "or when this is the final attempt — the plan is persisted and its id returned. Call it after " +

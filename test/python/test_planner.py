@@ -174,14 +174,18 @@ class PipelineTest(unittest.TestCase):
         result = full_pipeline(ws)
         self.assertEqual(result.returncode, 0, result.stdout)
         mission = json.loads((ws / "data/mission.json").read_text())
-        self.assertEqual(mission["version"], "3")
+        self.assertEqual(mission["version"], "4")
         self.assertIn("global_origin", mission)
-        route = mission["route"][0]
-        self.assertEqual([route["wp"][0]["type"], route["wp"][-1]["type"]], ["takeoff", "landing"])
-        self.assertEqual(route["wp"][0]["pos"][2], 10.0)
-        self.assertEqual(route["wp"][-1]["pos"][2], 10.0)
-        self.assertTrue(any(w["type"] == "transit" for w in route["wp"]), "se esperaban desvíos insertados")
-        inspection = [w for w in route["wp"] if w["type"] == "inspection"]
+        self.assertNotIn("route", mission)
+        task = mission["tasks"][0]
+        self.assertEqual((task["task_id"], task["device"], task["depends_on"]), ("T1", "uav_1", []))
+        self.assertIn("max_vel", task["params"])
+        self.assertNotIn("attributes", task)
+        self.assertEqual([task["wp"][0]["type"], task["wp"][-1]["type"]], ["takeoff", "landing"])
+        self.assertEqual(task["wp"][0]["pos"][2], 10.0)
+        self.assertEqual(task["wp"][-1]["pos"][2], 10.0)
+        self.assertTrue(any(w["type"] == "transit" for w in task["wp"]), "se esperaban desvíos insertados")
+        inspection = [w for w in task["wp"] if w["type"] == "inspection"]
         self.assertTrue(all(w["target"] == "A3" and w["tag"] for w in inspection))
 
     def test_rejections_explain_the_blocking_cause(self):
@@ -211,10 +215,10 @@ class PipelineTest(unittest.TestCase):
         self.assertEqual(full_pipeline(ws).returncode, 0)
 
         def corrupt(m):
-            r = m["route"][0]
+            r = m["tasks"][0]
             r["wp"][3]["yaw"] = 250
             r["wp"] = [w for w in r["wp"] if w["type"] != "takeoff"]
-            m["route"].append({**r, "task_id": "T2", "depends_on": ["T7"],
+            m["tasks"].append({**r, "task_id": "T2", "depends_on": ["T7"],
                                "wp": [{**r["wp"][0], "target": "Z9"}, r["wp"][-1]]})
             return m
         edit_json(ws / "data/mission.json", corrupt)

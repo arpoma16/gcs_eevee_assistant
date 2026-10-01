@@ -1,15 +1,17 @@
-"""Formato de misión v3: el ÚNICO lugar que lo conoce.
+"""Formato de misión v4 (grafo de tareas del GCS): el ÚNICO lugar que lo conoce.
 
-    {version: "3", name, description, global_origin, route: [
-      {id, name, wp: [{pos, yaw, gimbal, speed, action, type, target, tag}],
-       attributes: {mode_landing, mode_yaw, mode_gimbal, mode_trace, idle_vel, max_vel},
-       uav, task_id, depends_on, uav_type, action: "ROUTE"}]}
+    {version: "4", name, description, global_origin, tasks: [
+      {task_id, device, action, depends_on, uav_type, name,
+       params: {mode_landing, mode_yaw, mode_gimbal, mode_trace, idle_vel, max_vel},
+       wp: [{pos, yaw, gimbal, speed, action, type, target, tag}]}]}
 
-Referencia: test/mission format.yaml. En el sandbox `pos` es ENU en metros
-[x, y, z]; el gate lo convierte a geodésico (lat, lon, alt) al persistir, y para
-eso necesita `global_origin`. `type`, `target` y `tag` son los tres campos
-propios de este planner: tipo de waypoint (takeoff | transit | inspection |
-landing), target inspeccionado y una etiqueta de trazabilidad
+Referencia: multiuav_gcs/server/CLAUDE.md › "Mission Planning System". Una tarea
+corre en UN dron y arranca cuando terminan las de `depends_on`; el GCS rechaza dos
+tareas del mismo dron que el grafo no ordena. `action` es solo semántica (UI, logs).
+En el sandbox `pos` es ENU en metros [x, y, z]; el gate lo convierte a geodésico
+(lat, lon, alt) al persistir, y para eso necesita `global_origin`. `type`, `target`
+y `tag` son los tres campos propios de este planner: tipo de waypoint (takeoff |
+transit | inspection | landing), target inspeccionado y una etiqueta de trazabilidad
 (parte/superficie/zona/feature).
 """
 from __future__ import annotations
@@ -17,10 +19,11 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-VERSION = "3"
+VERSION = "4"
 WAYPOINT_TYPES = ("takeoff", "transit", "inspection", "landing")
+INSPECT_ACTION = "INSPECT"
 
-DEFAULT_ATTRIBUTES = {
+DEFAULT_PARAMS = {
     "mode_landing": 0,
     "mode_yaw": 3,       # yaw por waypoint
     "mode_gimbal": 0,
@@ -45,27 +48,26 @@ def waypoint(pos, type, *, yaw=None, gimbal=None, speed=None, action=None, targe
     }
 
 
-def route(id, uav, uav_type, task_id, wp, *, name=None, depends_on=(), attributes=None):
+def task(task_id, device, uav_type, wp, *, action=INSPECT_ACTION, name=None, depends_on=(), params=None):
     return {
-        "id": id,
-        "name": name or f"route_{uav}",
-        "wp": wp,
-        "attributes": {**DEFAULT_ATTRIBUTES, **(attributes or {})},
-        "uav": uav,
         "task_id": task_id,
+        "device": device,
+        "action": action,
         "depends_on": list(depends_on),
+        "name": name or f"{task_id}_{device}",
         "uav_type": uav_type,
-        "action": "ROUTE",
+        "params": {**DEFAULT_PARAMS, **(params or {})},
+        "wp": wp,
     }
 
 
-def mission(routes, global_origin, *, name="mission", description=""):
+def mission(tasks, global_origin, *, name="mission", description=""):
     return {
         "version": VERSION,
         "name": name,
         "description": description,
         "global_origin": global_origin,
-        "route": routes,
+        "tasks": tasks,
     }
 
 

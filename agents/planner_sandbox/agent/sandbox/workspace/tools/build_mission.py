@@ -1,6 +1,6 @@
-"""Ensambla data/mission.json (formato v3) a partir de views.json y assignment.json.
+"""Ensambla data/mission.json (formato v4, tasks[]) a partir de views.json y assignment.json.
 
-Por cada ruta de assignment.json: despegue sobre la posición del dron → cada
+Cada ruta de assignment.json es una tarea: despegue sobre la posición del dron → cada
 bloque en el orden dado → aterrizaje en el mismo punto. Las vistas de un bloque
 se recorren en el orden en que las generó el script de inspección (los patrones
 ya van en serpentina); lo único que se decide acá es el SENTIDO: hacia adelante
@@ -85,7 +85,7 @@ def check(views_by_block, routes, world):
     return errors
 
 
-def build_route(index, r, views_by_block, world, args):
+def build_task(r, views_by_block, world, args):
     device = world.device(r["uav"])
     home = world.device_position(r["uav"])
     takeoff = home + [0, 0, args.takeoff_alt]
@@ -103,11 +103,11 @@ def build_route(index, r, views_by_block, world, args):
     wps.append(fmt.waypoint(landing, "landing", yaw=0))
     wps, vias, failed = add_transits(wps, world, args.safety)
 
-    attributes = {"idle_vel": args.speed, "max_vel": max(args.max_speed, args.speed)}
-    route = fmt.route(index, r["uav"], device.get("category"), r["task_id"], wps,
-                      depends_on=r.get("depends_on", []), attributes=attributes)
+    params = {"idle_vel": args.speed, "max_vel": max(args.max_speed, args.speed)}
+    task = fmt.task(r["task_id"], r["uav"], device.get("category"), wps,
+                    depends_on=r.get("depends_on", []), params=params)
     length = sum(dist(a["pos"], b["pos"]) for a, b in zip(wps, wps[1:]))
-    return route, length, vias, failed
+    return task, length, vias, failed
 
 
 def add_transits(wps, world, safety):
@@ -133,9 +133,9 @@ def add_transits(wps, world, safety):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--speed", type=float, default=fmt.DEFAULT_ATTRIBUTES["idle_vel"],
+    parser.add_argument("--speed", type=float, default=fmt.DEFAULT_PARAMS["idle_vel"],
                         help="velocidad de crucero (idle_vel), de MISSION PARAMETERS")
-    parser.add_argument("--max-speed", type=float, default=fmt.DEFAULT_ATTRIBUTES["max_vel"])
+    parser.add_argument("--max-speed", type=float, default=fmt.DEFAULT_PARAMS["max_vel"])
     parser.add_argument("--takeoff-alt", type=float, default=10.0, help="altura del waypoint de despegue")
     parser.add_argument("--landing-alt", type=float, default=10.0,
                         help="altura del waypoint de aterrizaje; el dron hace su propia secuencia de descenso")
@@ -158,28 +158,28 @@ def main():
     if errors:
         sys.exit("No se puede ensamblar:\n  - " + "\n  - ".join(errors))
 
-    routes, report = [], []
-    for i, r in enumerate(routes_in):
-        route, length, vias, failed = build_route(i, r, views_by_block, world, args)
-        routes.append(route)
+    tasks, report = [], []
+    for r in routes_in:
+        task, length, vias, failed = build_task(r, views_by_block, world, args)
+        tasks.append(task)
         if vias:
-            print(f"{route['task_id']}: {vias} puntos de paso insertados")
+            print(f"{task['task_id']}: {vias} puntos de paso insertados")
         for f in failed:
-            print(f"{route['task_id']}: SIN DESVÍO POSIBLE {f} (queda recto; el validador lo va a reportar)")
-        photos = sum(w["type"] == "inspection" for w in route["wp"])
+            print(f"{task['task_id']}: SIN DESVÍO POSIBLE {f} (queda recto; el validador lo va a reportar)")
+        photos = sum(w["type"] == "inspection" for w in task["wp"])
         minutes = (length / args.speed + photos * args.hover_s) / 60
-        report.append((route, length, photos, minutes))
+        report.append((task, length, photos, minutes))
 
-    fmt.save(fmt.mission(routes, world.global_origin, name=args.name, description=args.description),
+    fmt.save(fmt.mission(tasks, world.global_origin, name=args.name, description=args.description),
              args.data / "mission.json")
 
-    finish = fmt.finish_times({r["task_id"]: m for r, _, _, m in report},
-                              {r["task_id"]: r["depends_on"] for r, _, _, _ in report})
-    for route, length, photos, minutes in report:
-        deps = f", después de {', '.join(route['depends_on'])}" if route["depends_on"] else ""
-        print(f"{route['task_id']} {route['uav']}: {len(route['wp'])} wp ({photos} fotos), "
-              f"{length:.0f} m, ~{minutes:.1f} min a {args.speed} m/s{deps} · termina ~{finish[route['task_id']]:.1f} min")
-    print(f"{len(routes)} rutas, {len(world.targets)} targets · duración total ~{max(finish.values()):.1f} min "
+    finish = fmt.finish_times({t["task_id"]: m for t, _, _, m in report},
+                              {t["task_id"]: t["depends_on"] for t, _, _, _ in report})
+    for task, length, photos, minutes in report:
+        deps = f", después de {', '.join(task['depends_on'])}" if task["depends_on"] else ""
+        print(f"{task['task_id']} {task['device']}: {len(task['wp'])} wp ({photos} fotos), "
+              f"{length:.0f} m, ~{minutes:.1f} min a {args.speed} m/s{deps} · termina ~{finish[task['task_id']]:.1f} min")
+    print(f"{len(tasks)} tareas, {len(world.targets)} targets · duración total ~{max(finish.values()):.1f} min "
           f"(ruta crítica) -> {args.data / 'mission.json'}")
 
 

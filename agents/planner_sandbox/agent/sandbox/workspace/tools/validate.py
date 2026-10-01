@@ -2,9 +2,9 @@
 
 Qué comprueba:
 
-  estructura   formato v3, global_origin, primer wp takeoff / último landing, tipos
+  estructura   formato v4 (tasks[]), global_origin, primer wp takeoff / último landing, tipos
                de waypoint, yaw en [-180, 180], drones existentes, task_id únicos,
-               depends_on existentes y sin ciclos, un mismo dron sin dos rutas a la vez
+               depends_on existentes y sin ciclos, un mismo dron sin dos tareas a la vez
   cobertura    cada target del briefing tiene al menos una vista; ninguna vista de
                un elemento que no sea target
   altitud      mínimo en todo el recorrido; techo de lib/regulation.py (120 m o la
@@ -49,7 +49,7 @@ HINTS = {
               "nunca el archivo.",
     "coverage": "falta inspeccionar un target: revisá PLAN en scripts/inspection.py y las vistas rechazadas.",
     "depends_on": "revisá task_id/depends_on en assignment.json.",
-    "uav": "un dron no puede volar dos rutas a la vez: encadenalas con depends_on o juntalas en una.",
+    "uav": "un dron no puede volar dos tareas a la vez: encadenalas con depends_on o juntalas en una.",
     "altitude_min": "el recorrido baja del mínimo: revisá el rango (range_m) de las vistas o la altura de "
                     "despegue/aterrizaje.",
     "altitude_max": "el recorrido pasa el techo: es una vista (cambiá qué se inspecciona) o un tramo entre dos "
@@ -67,8 +67,8 @@ class Report:
         self.findings = []
         self._worst = {}
 
-    def add(self, code, msg, route=None, where=None, **extra):
-        self.findings.append({"code": code, "route": route, "where": where, "msg": msg, **extra})
+    def add(self, code, msg, task=None, where=None, **extra):
+        self.findings.append({"code": code, "task": task, "where": where, "msg": msg, **extra})
 
     def add_worst(self, key, value, code, msg, **extra):
         """Una sola entrada por clave (tramo+obstáculo), la de menor `value`."""
@@ -87,59 +87,59 @@ def check_structure(m, world, rep):
         rep.add("format", f"version {m.get('version')!r}, se espera {fmt.VERSION!r}")
     if not m.get("global_origin"):
         rep.add("format", "falta global_origin (hace falta para convertir a geodésico)")
-    routes = m.get("route") or []
-    if not routes:
-        rep.add("format", "la misión no tiene rutas")
+    tasks = m.get("tasks") or []
+    if not tasks:
+        rep.add("format", "la misión no tiene tareas")
         return
     device_names = {d["name"] for d in world.devices}
     target_names = {t.name for t in world.targets}
-    task_ids = [r.get("task_id") for r in routes]
+    task_ids = [r.get("task_id") for r in tasks]
     for t in sorted({t for t in task_ids if task_ids.count(t) > 1}, key=str):
         rep.add("depends_on", f"task_id {t} repetido")
-    deps = {r.get("task_id"): [d for d in r.get("depends_on") or [] if d in task_ids] for r in routes}
-    for r in routes:
+    deps = {r.get("task_id"): [d for d in r.get("depends_on") or [] if d in task_ids] for r in tasks}
+    for r in tasks:
         tid = r.get("task_id")
         for d in r.get("depends_on") or []:
             if d not in task_ids:
-                rep.add("depends_on", f"depende de {d}, que no existe", route=tid)
-        if r.get("uav") not in device_names:
-            rep.add("uav", f"dron {r.get('uav')!r} no está en la misión", route=tid)
+                rep.add("depends_on", f"depende de {d}, que no existe", task=tid)
+        if r.get("device") not in device_names:
+            rep.add("uav", f"dron {r.get('device')!r} no está en la misión", task=tid)
         wps = r.get("wp") or []
         if len(wps) < 2:
-            rep.add("format", "ruta con menos de 2 waypoints", route=tid)
+            rep.add("format", "tarea con menos de 2 waypoints", task=tid)
             continue
         if wps[0].get("type") != "takeoff":
-            rep.add("format", "el primer waypoint no es takeoff", route=tid, where="wp 0")
+            rep.add("format", "el primer waypoint no es takeoff", task=tid, where="wp 0")
         if wps[-1].get("type") != "landing":
-            rep.add("format", "el último waypoint no es landing", route=tid, where=f"wp {len(wps) - 1}")
+            rep.add("format", "el último waypoint no es landing", task=tid, where=f"wp {len(wps) - 1}")
         for i, w in enumerate(wps):
             pos = w.get("pos")
             if not (isinstance(pos, list) and len(pos) == 3 and all(isinstance(v, (int, float)) for v in pos)):
-                rep.add("format", f"pos inválida {pos!r}", route=tid, where=f"wp {i}")
+                rep.add("format", f"pos inválida {pos!r}", task=tid, where=f"wp {i}")
             if w.get("type") not in fmt.WAYPOINT_TYPES:
-                rep.add("format", f"type {w.get('type')!r} no válido", route=tid, where=f"wp {i}")
+                rep.add("format", f"type {w.get('type')!r} no válido", task=tid, where=f"wp {i}")
             yaw = w.get("yaw")
             if yaw is not None and not -180 <= yaw <= 180:
-                rep.add("format", f"yaw {yaw} fuera de [-180, 180]", route=tid, where=f"wp {i}")
+                rep.add("format", f"yaw {yaw} fuera de [-180, 180]", task=tid, where=f"wp {i}")
             if w.get("type") == "inspection":
                 if w.get("target") not in target_names:
                     rep.add("coverage", f"inspecciona {w.get('target')!r}, que no es target de la misión",
-                            route=tid, where=f"wp {i}")
+                            task=tid, where=f"wp {i}")
                 if not w.get("tag"):
-                    rep.add("format", "waypoint de inspección sin tag", route=tid, where=f"wp {i}")
+                    rep.add("format", "waypoint de inspección sin tag", task=tid, where=f"wp {i}")
     try:
         fmt.finish_times({t: 0.0 for t in task_ids}, deps)
     except ValueError as e:
         rep.add("depends_on", str(e))
     by_uav = {}
-    for r in routes:
-        by_uav.setdefault(r.get("uav"), []).append(r.get("task_id"))
+    for r in tasks:
+        by_uav.setdefault(r.get("device"), []).append(r.get("task_id"))
     for uav, tids in by_uav.items():
         for i, a in enumerate(tids):
             for b in tids[i + 1:]:
                 if not fmt.sequenced(a, b, deps):
                     rep.add("uav", f"{uav} tiene {a} y {b} sin depends_on entre ellas")
-    covered = {w.get("target") for r in routes for w in r.get("wp") or [] if w.get("type") == "inspection"}
+    covered = {w.get("target") for r in tasks for w in r.get("wp") or [] if w.get("type") == "inspection"}
     for t in world.targets:
         if t.name not in covered:
             rep.add("coverage", f"el target {t.name} no tiene ninguna vista")
@@ -153,13 +153,13 @@ def samples(a, b):
     return a + np.linspace(0, 1, n)[:, None] * (b - a)
 
 
-def check_route(r, world, safety, simple, rep):
+def check_task(r, world, safety, simple, rep):
     tid, wps = r.get("task_id"), r.get("wp") or []
     gf = world.geofence()
     for i, w in enumerate(wps):
         p = np.asarray(w["pos"], float)
         if gf is not None and not ((gf[0] <= p[:2]).all() and (p[:2] <= gf[1]).all()):
-            rep.add("geofence", f"({p[0]:.0f}, {p[1]:.0f}) fuera de la geovalla", route=tid, where=f"wp {i}",
+            rep.add("geofence", f"({p[0]:.0f}, {p[1]:.0f}) fuera de la geovalla", task=tid, where=f"wp {i}",
                     tag=w.get("tag"))
 
     for i in range(len(wps) - 1):
@@ -167,7 +167,7 @@ def check_route(r, world, safety, simple, rep):
         A, B = np.asarray(a["pos"], float), np.asarray(b["pos"], float)
         P = samples(A, B)
         where = f"tramo {i}→{i + 1}"
-        ctx = {"route": tid, "where": where, "from": a.get("tag") or a["type"], "to": b.get("tag") or b["type"]}
+        ctx = {"task": tid, "where": where, "from": a.get("tag") or a["type"], "to": b.get("tag") or b["type"]}
         inspected = sorted(leg_context(wps, i))
 
         # altitud mínima (los extremos takeoff/landing son la altura que eligió build_mission)
@@ -225,8 +225,8 @@ def validate(m, world, safety):
     check_structure(m, world, rep)
     if not any(f["code"] == "format" for f in rep.findings):
         simple = world.simple_objects()
-        for r in m.get("route") or []:
-            check_route(r, world, safety, simple, rep)
+        for r in m.get("tasks") or []:
+            check_task(r, world, safety, simple, rep)
     findings = rep.all()
     return {
         "valid": not findings,
@@ -241,16 +241,16 @@ def validate(m, world, safety):
 
 
 def print_report(result, m):
-    for r in m.get("route") or []:
-        own = [f for f in result["findings"] if f.get("route") == r.get("task_id")]
+    for r in m.get("tasks") or []:
+        own = [f for f in result["findings"] if f.get("task") == r.get("task_id")]
         status = "OK" if not own else f"{len(own)} hallazgos"
-        print(f"{r.get('task_id')} {r.get('uav')}: {len(r.get('wp') or [])} wp · {status}")
+        print(f"{r.get('task_id')} {r.get('device')}: {len(r.get('wp') or [])} wp · {status}")
         for f in own:
             loc = f" {f['from']} → {f['to']}" if "from" in f else ""
             at = f" en {f['at']}" if "at" in f else ""
             print(f"  [{f['code']}] {f['where'] or ''}{loc}: {f['msg']}{at}")
     for f in result["findings"]:
-        if f.get("route") is None:
+        if f.get("task") is None:
             print(f"  [{f['code']}] {f['msg']}")
     for code, hint in result["hints"].items():
         print(f"  → {code}: {hint}")

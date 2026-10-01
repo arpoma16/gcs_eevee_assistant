@@ -68,12 +68,12 @@ a `rectangle`) over the catalog's `geometry`. `tools/describe.py` therefore cove
                           rejections carry nominal / best-attempt / `blocking` reasons + a hint per code
     regulation.py         altitude ceiling: 120 m, or up to 15 m above an element taller than 105 m within
                           50 m of it (EU 2019/947 UAS.OPEN.010(2), requires the element owner's request)
-    mission.py            writes the mission v3 format — the only place that knows it; depends_on helpers
+    mission.py            writes the mission v4 format (`tasks[]`) — the only place that knows it; depends_on helpers
     transit.py            A* detours on a local 3D grid (port of insem's find_via) under the logical-leg rule
   tools/                  FIXED — run from the CLI
     describe.py           model summary (parts, surfaces, zones, features, state); the model reads THIS, not raw YAML
     assign.py             basic assignment: whole block → nearest drone, balanced, NN + 2-opt ordering
-    build_mission.py      views + assignment → data/mission.json (v3); inserts `transit` detours where a
+    build_mission.py      views + assignment → data/mission.json (v4); inserts `transit` detours where a
                           straight segment isn't flyable, and explains why when there is none
     validate.py           the validator (same code the gate runs)
   examples/
@@ -120,12 +120,12 @@ not the longest single route:
   { "uav": "uav_2", "task_id": "T2", "depends_on": ["T1"], "blocks": ["A3/tower"] } ] }
 ```
 
-### Mission format (v3)
+### Mission format (v4, task graph)
 
-Exactly `test/mission format.yaml` — `version: "3"`, `route[]` with `id`, `name`, `uav`, `uav_type`,
-`task_id`, `depends_on`, `action: ROUTE`, full `attributes` (`mode_landing`, `mode_yaw`, `mode_gimbal`,
-`mode_trace`, `idle_vel`, `max_vel`) and `wp[]` with `pos`, `yaw`, `gimbal`, `speed`, `action` — plus three
-fields per waypoint:
+The GCS task graph (`multiuav_gcs/server/CLAUDE.md` › "Mission Planning System") — `version: "4"`, `tasks[]`
+with `task_id`, `device`, `action: INSPECT` (semantic only), `depends_on`, `name`, `uav_type`, full `params`
+(`mode_landing`, `mode_yaw`, `mode_gimbal`, `mode_trace`, `idle_vel`, `max_vel`) and `wp[]` with `pos`, `yaw`,
+`gimbal`, `speed`, `action` — plus three fields per waypoint:
 
 ```yaml
 type: inspection                  # takeoff | transit | inspection | landing
@@ -133,7 +133,9 @@ target: A3                        # null outside inspection
 tag: blade_A/leading_edge/tip     # free string, for traceability in validator reports
 ```
 
-Inside the sandbox `pos` is ENU metres; the gate converts to geodetic on persist.
+Inside the sandbox `pos` is ENU metres; the gate converts to geodetic on persist. Not `route[]`: the GCS still
+accepts it, but its adapter renumbers `task_id` and drops `depends_on`, so the dependencies would be lost.
+`/missions/plans` rejects an invalid graph (400), including two tasks of one device not ordered by `depends_on`.
 
 ## The gate (`validate_and_persist`)
 
@@ -147,10 +149,10 @@ any other exit code, or a missing `data/validation.json`, throws. No longer call
 mission's `global_origin`) → `/missions/plans`. Returns `totalCollisions` (clearance findings) and
 `totalFindings` (all).
 
-`validate.py` checks: v3 structure; every briefing target covered; `depends_on` references existing
+`validate.py` checks: v4 structure; every briefing target covered; `depends_on` references existing
 `task_id`s with no cycles; altitude floor and the `lib/regulation.py` ceiling (same rule as view
 generation, applied to transit too); geofence (`origin.json` boundaries); the three collision
-levels above, segments sampled every ~0.5 m. Report lines name `route / wp index / tag / obstacle /
+levels above, segments sampled every ~0.5 m. Report lines name `task / wp index / tag / obstacle /
 penetration`.
 
 `MAX_VALIDATION_ITERATIONS` lives in `instructions.md` §1 and in whatever counts gate calls — keep in sync.
@@ -159,10 +161,6 @@ penetration`.
 
 - **UAV–UAV deconfliction.** The validator does not yet check separation between routes flying at the same
   time (no `depends_on` between them).
-- **`xyz-to-geodetic` round trip with v3.** Unverified that the GCS converter / `/missions/plans` preserve
-  `task_id`, `depends_on`, `uav_type`, `gimbal`, `type`, `target`, `tag`. Only the forward direction
-  (`geodetic-to-xyz`, see `test/workspace/data/targets.json`) is known to work. Needed as the output format to
-  test end to end; fix on the GCS side when it breaks.
 - **Catalog vs model consistency (GCS side, owner: operator).** The catalog/target descriptions and the
   `.insem.yaml` disagree on size (test: hub 80 m / rotor 56 m vs 90 m / 120 m), and the model's frame must
   match `azimFront`. Fixed in the data, not worked around in code.

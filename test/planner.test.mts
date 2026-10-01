@@ -150,10 +150,11 @@ describe("validate_and_persist (gate)", () => {
     assert.match(out.report, /planID 42/);
     assert.deepEqual(calls.map((c) => c.path), ["/missions/convert/xyz-to-geodetic", "/missions/plans"]);
     const sent = calls[0].body;
-    assert.equal(sent.version, "3");
+    assert.equal(sent.version, "4");
     assert.ok(sent.global_origin);
-    assert.equal(sent.route[0].task_id, "T1");
-    assert.ok(sent.route[0].wp.some((w: { type: string }) => w.type === "transit"));
+    assert.equal(sent.tasks[0].task_id, "T1");
+    assert.deepEqual(sent.tasks[0].depends_on, []);
+    assert.ok(sent.tasks[0].wp.some((w: { type: string }) => w.type === "transit"));
   });
 
   test("an invalid mission never reaches the GCS, unless it is the final attempt", async () => {
