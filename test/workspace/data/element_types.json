@@ -1,0 +1,19 @@
+[
+  {
+    "type": "Wind Turbine",
+    "model_file": "data/models/wind_turbine.insem.yaml",
+    "geometry": {
+      "geometry_type": "circle",
+      "dimensions": {
+        "radius": 28,
+        "height": 108
+      }
+    },
+    "description": "tower_height: 80 m, blade_length: 28 m",
+    "elements": [
+      "A3",
+      "A2"
+    ],
+    "element_count": 2
+  }
+]

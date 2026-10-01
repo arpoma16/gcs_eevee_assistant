@@ -21,6 +21,7 @@
     "start": "eve start --agent assistant",
     "start:monitor": "eve start --agent monitor --port 3001",
     "eval": "eve eval --agent assistant",
+    "test:planner": "PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s test/python && npx -y tsx --test test/planner.test.mts",
     "typecheck": "tsc"
   },
   "dependencies": {

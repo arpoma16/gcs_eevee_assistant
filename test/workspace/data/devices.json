@@ -1,0 +1,13 @@
+[
+  {
+    "id": 2,
+    "name": "uav_1",
+    "category": "px4_ros2",
+    "batteryLevel": 100,
+    "position": {
+      "x": 0,
+      "y": 0,
+      "z": 0
+    }
+  }
+]

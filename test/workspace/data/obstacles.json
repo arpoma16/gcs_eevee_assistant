@@ -1,0 +1,13 @@
+[
+  {
+    "id": 2,
+    "name": "A2",
+    "type": "Wind Turbine",
+    "position": {
+      "x": -996.59,
+      "y": -110.77,
+      "z": 0
+    },
+    "azimFront": 0
+  }
+]

@@ -1,0 +1,21 @@
+[
+  {
+    "id": 3,
+    "name": "A3",
+    "groupName": "Line A",
+    "type": "Wind Turbine",
+    "position": {
+      "x": -998.65,
+      "y": 87.79,
+      "z": 0
+    },
+    "azimFront": 0,
+    "attributes": {
+      "nacelle_heading_deg": 240,
+      "rotor_azimuth_deg": 180,
+      "blade_pitch_deg": 90
+    },
+    "description": "hub_height:80m blade_length: 28m blade_count:3 ground_elevation: sea level 0m tower_diameter:6m rotor_diameter: 56m max_tip_height: 108m min_tip_height: 52m yaw_orientation: 90deg        # heading del rotor 0deg north blade_state: stopped           # rotating | stopped | feathered rotor_speed_rpm: 0             # 0 if blades stopped blade_azimuth_angle: 0deg     # rotor rotation, 0° = blade vertical up blade_pitch_angle: 2deg        # aerodynamic inclination, meaningless for missions",
+    "groupdescription": "location: Viana do Castelo, Portugal offshore at sea windTurbine"
+  }
+]
