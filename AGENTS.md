@@ -6,6 +6,15 @@ This project is an **eve workspace**: every directory under `agents/<name>/` tha
 | --- | --- | --- | --- |
 | `agents/assistant/` | operator-facing assistant; delegates planning to its `planner` and `planner_sandbox` subagents | `medium` (planners `high`) | full GCS allowlist, flight-critical tools behind `user-approval` |
 | `agents/monitor/` | autonomous telemetry watch; wakes on its own clock | `low` | read-only GCS allowlist, `defaultTools: false` (no built-in tools at all) |
+| `agents/planner_sandbox/` | test agent for planner sandbox | `high` |  `defaultTools: true`  |
+
+
+Others interesting paths:
+- `test/` -> planner_sandbox tests. `npm run test:planner` runs the offline ones: `test/python/` (stdlib `unittest`
+  over the sandbox's `lib/` + `tools/`, end to end on `test/workspace/data`) and `test/planner.test.mts` (model
+  synthesizer + the validation gate with a fake sandbox and mocked GCS). `test/tool-prepare.mts` runs
+  `prepare_mission_input` against a live GCS and refreshes `test/workspace/data`.
+
 
 Schedules and channels are root-only in eve, which is why the monitor is its own root agent and not a subagent of the assistant.
 

@@ -1,6 +1,8 @@
 import { defineTool } from "eve/tools";
 import { z } from "zod";
 
+import { GATE_COMMAND } from "../lib/gate";
+
 const GCS_API_URL = process.env.MUAV_API_URL ?? "http://localhost:4000/api";
 
 async function post(path: string, body: unknown) {
@@ -16,13 +18,19 @@ async function post(path: string, body: unknown) {
   return payload;
 }
 
+type Finding = { code: string };
+type Validation = { valid: boolean; total_findings: number; findings: Finding[] };
+
+const COLLISION_CODES = new Set(["clearance_target", "clearance_other"]);
+
 export default defineTool({
   description:
-    "The validation gate. Reads the mission the pipeline built and checks it against the GCS 3D " +
-    "obstacle database: collisions with obstacles, collisions between UAVs, route violations and " +
-    "mission integrity. When the mission is valid — or when this is the final attempt — the plan is " +
-    "persisted and its id returned. Call it after build_mission.py, and again after every repair. " +
-    "The mission never passes through your context: it is read straight from /workspace/data.",
+    "The validation gate. Runs the planner's own validator — a protected copy of tools/validate.py, not " +
+    "the one in /workspace — over /workspace/data/mission.json: v3 structure, coverage of every target, " +
+    "depends_on, altitude floor and EU 2019/947 ceiling, geofence, and collisions (full model of the " +
+    "targets being inspected, simple catalog geometry for everything else). When the mission is valid — " +
+    "or when this is the final attempt — the plan is persisted and its id returned. Call it after " +
+    "tools/build_mission.py, and again after every repair. The mission never passes through your context.",
   inputSchema: z.object({
     is_final_attempt: z
       .boolean()
@@ -35,43 +43,46 @@ export default defineTool({
   async execute({ is_final_attempt = false }, ctx) {
     const sandbox = await ctx.getSandbox();
 
-    const readJson = async (path: string, producedBy: string) => {
-      const raw = await sandbox.readTextFile({ path });
-      if (raw === null) {
-        throw new Error(`/workspace/${path} does not exist yet — run ${producedBy} before calling the gate.`);
-      }
-      return JSON.parse(raw);
-    };
+    const missionRaw = await sandbox.readTextFile({ path: "data/mission.json" });
+    if (missionRaw === null) {
+      throw new Error("/workspace/data/mission.json does not exist yet — run tools/build_mission.py before the gate.");
+    }
 
-    const [mission, collision_objects, targets] = await Promise.all([
-      readJson("data/mission.json", "pipeline/build_mission.py"),
-      readJson("data/collision_objects.json", "pipeline/build_collision_objects.py"),
-      readJson("data/targets.json", "prepare_mission_input"),
-    ]);
+    // Exit 0 = valid, 1 = invalid; anything else means the validator itself could not run.
+    const run = await sandbox.run({ command: GATE_COMMAND });
+    if (run.exitCode !== 0 && run.exitCode !== 1) {
+      throw new Error(`The gate's validator failed to run (exit ${run.exitCode}): ${run.stderr || run.stdout}`);
+    }
+    const validationRaw = await sandbox.readTextFile({ path: "data/validation.json" });
+    if (validationRaw === null) {
+      throw new Error(`The gate's validator wrote no report: ${run.stderr || run.stdout}`);
+    }
+    const validation = JSON.parse(validationRaw) as Validation;
+    const totalCollisions = validation.findings.filter((f) => COLLISION_CODES.has(f.code)).length;
+    const report = run.stdout.trim();
 
-    const target_ids = targets.map((t: { id: string | number }) => String(t.id));
-
-    const result = await post("/missions/validate", { mission, collision_objects, target_ids });
-
-    if (!result.valid && !is_final_attempt) {
+    if (!validation.valid && !is_final_attempt) {
       return {
         valid: false,
-        totalCollisions: result.totalCollisions,
-        report: `MISSION INVALID. See details below:\n${result.report}`,
+        totalCollisions,
+        totalFindings: validation.total_findings,
+        report: `MISSION INVALID. Details in /workspace/data/validation.json:\n${report}`,
       };
     }
 
-    // Persist: the plan is stored geodetic, so it goes back through the GCS converter.
-    const geodetic = await post("/missions/convert/xyz-to-geodetic", { version: "3", ...mission });
+    // Persist: the plan is stored geodetic, so it goes back through the GCS converter (needs global_origin).
+    const mission = JSON.parse(missionRaw);
+    const geodetic = await post("/missions/convert/xyz-to-geodetic", mission);
     const saved = await post("/missions/plans", { missionData: geodetic });
 
     return {
-      valid: result.valid,
-      totalCollisions: result.totalCollisions,
+      valid: validation.valid,
+      totalCollisions,
+      totalFindings: validation.total_findings,
       missionPlanId: saved.id,
-      report: result.valid
-        ? `MISSION valid, persisted with planID ${saved.id}\n${result.report}`
-        : `MISSION INVALID after exhausting refinement iterations. Saved as-is with planID ${saved.id}.\n${result.report}`,
+      report: validation.valid
+        ? `MISSION valid, persisted with planID ${saved.id}\n${report}`
+        : `MISSION INVALID after exhausting refinement iterations. Saved as-is with planID ${saved.id}.\n${report}`,
     };
   },
 });
