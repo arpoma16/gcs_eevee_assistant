@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { Box, Button, Stack, Tab, Tabs, Typography } from "@mui/material";
+import { Box, IconButton, Stack, Tab, Tabs, Typography } from "@mui/material";
+import StopIcon from "@mui/icons-material/Stop";
 import { useEveAgent } from "eve/react";
-import { ChatBox } from "@mui/x-chat";
+import { ChatBox, ChatComposerSendButton, type ChatComposerSendButtonProps } from "@mui/x-chat";
 import { useChatStatus, useChatActions } from "@mui/x-chat/headless";
 import { useEveAgentChatAdapter } from "./lib/useEveAgentChatAdapter";
 import ApprovalToolPart from "./ApprovalToolPart";
@@ -104,10 +105,9 @@ function Chat({ threadId, onThreadUpdate }: ChatProps) {
             "dynamic-tool": (props) => <ApprovalToolPart {...props} getInputRequest={getInputRequest} respond={agent.respond} />,
           }}
           features={{ conversationHeader: false, helperText: false }}
-          sx={{ flex: 1, minHeight: 0, position: "relative" }}
-        >
-          <CancelTurnButton />
-        </ChatBox>
+          slots={{ composerSendButton: SendOrCancelButton }}
+          sx={{ flex: 1, minHeight: 0 }}
+        />
       </Stack>
 
       {subagents.length > 0 ? (
@@ -141,15 +141,31 @@ function Chat({ threadId, onThreadUpdate }: ChatProps) {
   );
 }
 
-/** `ChatBox` renders no stop button of its own (see MUI X Chat docs, Building an adapter §3) — this one lives as a `ChatBox` child so it can reach `useChatStatus`/`useChatActions`. */
-function CancelTurnButton() {
+/**
+ * `ChatBox` renders no stop button of its own (see MUI X Chat docs, Building an adapter §3), so this
+ * replaces the `composerSendButton` slot: while a turn streams, the send button becomes a stop button
+ * in the same spot. Being rendered inside `ChatBox`, it can reach `useChatStatus`/`useChatActions`.
+ */
+function SendOrCancelButton(props: ChatComposerSendButtonProps) {
   const { isStreaming } = useChatStatus();
   const { stopStreaming } = useChatActions();
-  if (!isStreaming) return null;
+  if (!isStreaming) return <ChatComposerSendButton {...props} />;
   return (
-    <Button size="small" onClick={() => stopStreaming()} sx={{ position: "absolute", top: 8, right: 8, zIndex: 1 }}>
-      Cancelar
-    </Button>
+    <IconButton
+      aria-label="Cancelar"
+      title="Cancelar"
+      onClick={() => stopStreaming()}
+      sx={{
+        width: 36,
+        height: 36,
+        ml: "auto",
+        bgcolor: "error.main",
+        color: "error.contrastText",
+        "&:hover": { bgcolor: "error.dark" },
+      }}
+    >
+      <StopIcon fontSize="small" />
+    </IconButton>
   );
 }
 
