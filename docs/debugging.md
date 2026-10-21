@@ -21,14 +21,14 @@ Por default `eve dev` colapsa la sección de subagentes y el detalle de cada
 tool call. Para verlos completos:
 
 ```bash
-npx eve dev --agent assistant --subagents full --tools full --logs sandbox
+npx eve dev --agent assistant --subagents full --tools full --logs all
 ```
 
 | Flag | Qué hace |
 | ---- | -------- |
 | `--subagents full` | Expande el turno del subagente en el transcript: sus propios tool calls, no solo el resultado final que recibe el padre. |
 | `--tools full` | Expande input/output de cada tool call — para `planner_sandbox`, la salida completa de cada `bash python3 pipeline/*.py`. |
-| `--logs sandbox` | Agrega stdout/stderr del sandbox al log de la sesión (`/loglevel sandbox` también sirve una vez adentro de la TUI). |
+| `--logs all` | Muestra todos los logs, incluida la salida sin clasificar del sandbox (`/loglevel all` también sirve una vez adentro de la TUI). Modos válidos: `none` \| `error` \| `warn` \| `debug` \| `all`. |
 
 Referencia completa de modos (`full` \| `collapsed` \| `auto-collapsed` \|
 `hidden`) en `node_modules/eve/docs/reference/cli.md`, sección `eve dev`.
