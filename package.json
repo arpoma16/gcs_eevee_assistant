@@ -8,9 +8,9 @@
   },
   "scripts": {
     "dev": "eve dev",
-    "dev:assistant": "eve dev --agent assistant --subagents full --tools full --logs sandbox",
+    "dev:assistant": "eve dev --agent assistant --subagents full --tools full --logs all",
     "dev:monitor": "eve dev --agent monitor --port 2001",
-    "dev:planner_sandbox": "eve dev --agent planner_sandbox --port 2002 --tools full --logs sandbox",
+    "dev:planner_sandbox": "eve dev --agent planner_sandbox --port 2002 --tools full --logs all",
     "dev:all": "npx vercel@59.23.2 dev --local --listen 3300",
     "dev:client": "npm --prefix client run dev",
     "dev:client:all": "npm --prefix client run dev:all",
@@ -30,7 +30,7 @@
     "@toon-format/toon": "^4.1.1",
     "@vercel/connect": "2.2.0",
     "ai": "^7.0.105",
-    "eve": "file:../../eve-upstream/eve-0.69.0.tgz",
+    "eve": "0.81.1",
     "zod": "4.5.4"
   },
   "devDependencies": {
