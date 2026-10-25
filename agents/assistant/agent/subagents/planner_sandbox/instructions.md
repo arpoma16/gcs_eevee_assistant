@@ -42,7 +42,7 @@ Your job is complete when `validate_and_persist` reports `valid: true`, and noth
 **Mission parameters — NOT constants.** They arrive per mission in the `MISSION PARAMETERS` block of your briefing. Read them from there; never assume a value.
 
 - **`camera_fov`** (degrees) — drives the inspection stand-off (Step 4).
-- **`cruise_speed`** (m/s) — goes verbatim into every route's `idle_vel`.
+- **`cruise_speed`** (m/s) — a number, or `vehicle` (each drone flies at its own mission speed). Copy it as given into `strategy_params.json`; `build_mission.py` resolves `vehicle` per drone.
 
 **DETOUR formula** — the cost measure for every bypass candidate:
 
@@ -240,7 +240,7 @@ The per-type flight parameters already went into `geometry.json` in Step 1. What
 
 ```json
 { "viewpoints_per_target": 4, "stand_off": 15.0, "altitude_fraction": 0.5,
-  "takeoff_landing_alt": 5.0, "cruise_speed": 5.0 }
+  "takeoff_landing_alt": 5.0, "cruise_speed": "vehicle" }
 ```
 
 - `cruise_speed`, `takeoff_landing_alt`: from MISSION PARAMETERS and §1.

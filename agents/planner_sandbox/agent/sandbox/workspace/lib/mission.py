@@ -1,7 +1,7 @@
 """Formato de misión v4 (grafo de tareas del GCS): el ÚNICO lugar que lo conoce.
 
     {version: "4", name, description, global_origin, tasks: [
-      {task_id, device, action, depends_on, uav_type, name,
+      {task_id, device, action, depends_on, [uav_type], name,
        params: {mode_landing, mode_yaw, mode_gimbal, mode_trace, idle_vel, max_vel},
        wp: [{pos, yaw, gimbal, speed, action, type, target, tag}]}]}
 
@@ -49,16 +49,19 @@ def waypoint(pos, type, *, yaw=None, gimbal=None, speed=None, action=None, targe
 
 
 def task(task_id, device, uav_type, wp, *, action=INSPECT_ACTION, name=None, depends_on=(), params=None):
-    return {
+    """`uav_type` None se omite: el GCS lo pone al cargar, desde el device."""
+    out = {
         "task_id": task_id,
         "device": device,
         "action": action,
         "depends_on": list(depends_on),
         "name": name or f"{task_id}_{device}",
-        "uav_type": uav_type,
         "params": {**DEFAULT_PARAMS, **(params or {})},
         "wp": wp,
     }
+    if uav_type is not None:
+        out["uav_type"] = uav_type
+    return out
 
 
 def mission(tasks, global_origin, *, name="mission", description=""):

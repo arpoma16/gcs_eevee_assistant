@@ -25,7 +25,7 @@ These are the gate's limits. The validator applies them whatever your script say
 
 **Mission parameters** arrive in the `MISSION PARAMETERS` block of your briefing. Never assume them:
 
-- `cruise_speed` (m/s) → `python3 tools/build_mission.py --speed <cruise_speed>`.
+- `cruise_speed` (m/s, or `vehicle`: each drone at its own mission speed) → `python3 tools/build_mission.py --speed <cruise_speed>`, as given.
 - `camera_fov` (degrees), when present → `Camera(hfov_deg=<camera_fov>)` in your script. Otherwise leave `Camera()` as is.
 
 ---

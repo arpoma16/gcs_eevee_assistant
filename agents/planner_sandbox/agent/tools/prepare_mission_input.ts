@@ -21,7 +21,8 @@ type Element = {
 
 type Briefing = {
   global_origin: { lat: number; lng: number; alt: number };
-  devices: { id: number; name: string; category: string; location: XYZ }[];
+  // `vehicle`: what it is and its model's numbers (GCS planningProfileOf); build_mission.py reads its speed
+  devices: { id: number; name: string; category: string; vehicle?: unknown; location: XYZ }[];
   targets: Element[];
   obstacles: Element[];
   boundaries: unknown;
@@ -162,7 +163,6 @@ export default defineTool({
         z.object({
           id: Identifier,
           name: z.string(),
-          category: z.string(),
           battery_level: z.number(),
         }),
       )

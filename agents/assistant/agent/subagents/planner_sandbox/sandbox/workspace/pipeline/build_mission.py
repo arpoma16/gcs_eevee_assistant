@@ -46,7 +46,21 @@ def waypoint(wp_type, position, yaw, target_name=None):
     return entry
 
 
-def build_route(plan, blocks, takeoffs, params):
+DEFAULT_SPEED = 5.0
+
+
+def cruise_speed(drone, params, devices):
+    """La velocidad de la ruta de `drone`: el número de MISSION PARAMETERS vale para
+    todos; `vehicle` es la velocidad de misión del propio dron (`vehicle.speeds.mission`
+    en devices.json, del modelo del GCS), DEFAULT_SPEED si su modelo no la declara."""
+    value = params["cruise_speed"]
+    if value != "vehicle":
+        return float(value)
+    speeds = (devices.get(drone, {}).get("vehicle") or {}).get("speeds") or {}
+    return float(speeds.get("mission", DEFAULT_SPEED))
+
+
+def build_route(plan, blocks, takeoffs, speed):
     drone = plan["drone_name"]
     takeoff = takeoffs[drone]
     names = plan["target_names"]
@@ -70,7 +84,7 @@ def build_route(plan, blocks, takeoffs, params):
         "name": f"route_{drone}",
         "description": f"Inspection route for {drone}: {', '.join(names)}",
         "uav": drone,
-        "attributes": {"idle_vel": float(params["cruise_speed"]), "mode_yaw": 3},
+        "attributes": {"idle_vel": speed, "mode_yaw": 3},
         "wp": wps,
     }, length
 
@@ -78,6 +92,7 @@ def build_route(plan, blocks, takeoffs, params):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--targets", default=DATA_DIR / "targets.json")
+    parser.add_argument("--devices", default=DATA_DIR / "devices.json")
     parser.add_argument("--origin", default=DATA_DIR / "origin.json")
     parser.add_argument("--plan", default=DATA_DIR / "route_plan.json")
     parser.add_argument("--waypoints", default=DATA_DIR / "step4_waypoints.json")
@@ -91,6 +106,7 @@ def main():
     plan = load_json(args.plan)
     step4 = load_json(args.waypoints)
     params = load_json(args.strategy)
+    devices = {d["name"]: d for d in load_json(args.devices)}
 
     blocks = {b["target_name"]: b for b in step4["target_blocks"]}
     takeoffs = {t["drone_name"]: t for t in step4["takeoff_landing"]}
@@ -104,11 +120,13 @@ def main():
     if missing := covered - set(blocks):
         sys.exit(f"Sin waypoints para: {', '.join(sorted(missing))}. Corré generate_waypoints.py primero.")
 
-    routes, lengths = [], {}
+    routes, lengths, speeds = [], {}, {}
     for plan_route in plan["routes"]:
-        route, length = build_route(plan_route, blocks, takeoffs, params)
+        speed = cruise_speed(plan_route["drone_name"], params, devices)
+        route, length = build_route(plan_route, blocks, takeoffs, speed)
         routes.append(route)
         lengths[route["uav"]] = round(length, 1)
+        speeds[route["uav"]] = speed
 
     save_json(args.output, {
         "description": args.description,
@@ -116,9 +134,8 @@ def main():
         "route": routes,
     })
 
-    speed = float(params["cruise_speed"])
     for uav, length in lengths.items():
-        print(f"{uav}: {length} m  ({round(length / speed / 60, 1)} min a {speed} m/s)")
+        print(f"{uav}: {length} m  ({round(length / speeds[uav] / 60, 1)} min a {speeds[uav]} m/s)")
     print(
         f"{len(routes)} rutas, {sum(len(r['wp']) for r in routes)} waypoints, "
         f"{len(expected)} targets · makespan {max(lengths.values())} m"

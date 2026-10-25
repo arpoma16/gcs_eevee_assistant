@@ -20,7 +20,7 @@ const ctx = {
 // Same input as agents/planner_sandbox/agent/input_msg.md
 const input = {
   targets: [{ id: 3, name: "A3" }],
-  selected_devices: [{ id: 2, name: "uav_1", category: "px4_ros2", battery_level: 100 }],
+  selected_devices: [{ id: 2, name: "uav_1", battery_level: 100 }],
 };
 
 const receipt = await (tool as any).execute(input, ctx);

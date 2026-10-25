@@ -227,6 +227,20 @@ class PipelineTest(unittest.TestCase):
         codes = {f["code"] for f in json.loads((ws / "data/validation.json").read_text())["findings"]}
         self.assertEqual(codes, {"format", "depends_on", "coverage", "uav"})
 
+    def test_speed_is_the_vehicles_unless_the_operator_gives_one(self):
+        def with_vehicle(data):
+            edit_json(data / "devices.json", lambda d: [{**d[0], "vehicle": {"speeds": {"mission": 7}}}])
+        ws = make_workspace(self.tmp.name, with_vehicle)
+        task = lambda: json.loads((ws / "data/mission.json").read_text())["tasks"][0]
+        self.assertEqual(full_pipeline(ws).returncode, 0)   # --speed 5: el número del operador vale para todos
+        self.assertEqual(task()["params"]["idle_vel"], 5.0)
+        self.assertNotIn("uav_type", task())                 # lo pone el GCS al cargar
+        run(ws, "tools/build_mission.py", "--speed", "vehicle")
+        self.assertEqual(task()["params"]["idle_vel"], 7.0)
+        edit_json(ws / "data/devices.json", lambda d: [{k: v for k, v in d[0].items() if k != "vehicle"}])
+        run(ws, "tools/build_mission.py")                    # por defecto `vehicle`; sin velocidad declarada, 5
+        self.assertEqual(task()["params"]["idle_vel"], 5.0)
+
     def test_build_refuses_broken_assignment(self):
         ws = make_workspace(self.tmp.name)
         self.assertEqual(full_pipeline(ws).returncode, 0)

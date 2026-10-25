@@ -25,7 +25,6 @@ const TargetSchema = z.object({
 const DeviceSchema = z.object({
   id: Identifier.describe("Device identifier from get_devices"),
   name: z.string().describe("Device name from get_devices, e.g. \"uav_1\""),
-  category: z.string().describe("Device category from get_devices, e.g. \"px4_ros2\""),
   battery_level: z.number().describe("Battery level percentage"),
 });
 
@@ -62,8 +61,8 @@ type Briefing = {
  * Resolves the briefing against the GCS: every device and target the model
  * named is checked against the database, positions are converted from geodetic
  * to ENU/XYZ around a local origin, and obstacles and boundaries are resolved
- * from the catalog. A hallucinated id, name or category is rejected here — this
- * is the only point where the model's claims meet the real data.
+ * from the catalog. A hallucinated id or name is rejected here — this is the
+ * only point where the model's claims meet the real data.
  */
 async function resolveBriefing(
   targets: z.infer<typeof TargetSchema>[],
@@ -136,6 +135,25 @@ ${encode(targets)}
 ${encode(selected_devices)}`;
 }
 
+const PLANNER_VEHICLE_KEYS = ["label", "vehicleType", "capabilities", "speeds", "limits", "vtol"];
+
+/**
+ * What the reasoning planner is told about a device: what it is, what it can do
+ * and the numbers it plans with (`vehicle`, from the GCS device model). The
+ * energy model (`physics`, `battery`), the sensors and the interface
+ * (`category`) are for the algorithmic planners and would only burn context.
+ * Same view as the MCP server's `plannerDeviceView`. Deep-copied through JSON:
+ * `vehicle` nests objects (`speeds`, `limits`), and toon encodes as `null` any
+ * object from another realm (see `toPlainObject`), at any depth.
+ */
+function plannerDeviceView(device: unknown) {
+  const { category: _category, vehicle, ...rest } = JSON.parse(JSON.stringify(device));
+  if (!vehicle) return rest;
+  // A block the model does not declare is absent, not null: the planner then uses its default
+  const kept = PLANNER_VEHICLE_KEYS.filter((key) => vehicle[key] != null).map((key) => [key, vehicle[key]]);
+  return { ...rest, vehicle: Object.fromEntries(kept) };
+}
+
 /** The exact section layout the planner's Step 1 reads. */
 function formatBriefing(
   input: { user_request: string; mission_strategy: string; mission_strategy_description: string },
@@ -149,7 +167,7 @@ ${JSON.stringify(briefing.global_origin)}
 ## target_ids
 ${briefing.targets.map((target) => target.id).join(", ")}
 ## Devices Information
-${encode(briefing.devices)}
+${encode(briefing.devices.map(plannerDeviceView))}
 ## Elements to Inspect
 ${encode(briefing.targets)}
 ## obstacles Information
@@ -182,7 +200,7 @@ export default defineWorkflowTool({
     selected_devices: z
       .array(DeviceSchema)
       .describe(
-        "Only the devices that will actually fly, after applying the online-status, proximity and workload " +
+        "Only the devices that will actually fly, after applying the capability, online-status, proximity and workload " +
           "filters. NOT the full fleet: every device widens the mission bounding box and can get the plan rejected.",
       ),
   }),

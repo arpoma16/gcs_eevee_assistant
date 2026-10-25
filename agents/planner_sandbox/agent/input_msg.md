@@ -17,7 +17,7 @@ A2 rules to apply:
 radius and geometry; enforce minimum vertical rings = 3.
 
 MISSION PARAMETERS
-cruise_speed: 5
+cruise_speed: vehicle
 camera_fov: 60
 
 ## global_origin_coordinates
@@ -26,5 +26,5 @@ camera_fov: 60
 [1]{id,name}:
   3,A3
 ## devices (pass these to prepare_mission_input)
-[1]{id,name,category,battery_level}:
-  2,uav_1,px4_ros2,100
+[1]{id,name,battery_level}:
+  2,uav_1,100

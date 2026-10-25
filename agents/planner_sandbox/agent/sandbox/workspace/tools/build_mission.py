@@ -43,6 +43,22 @@ def centroid(views):
     return np.mean([v["pos"] for v in views], axis=0)
 
 
+DEFAULT_SPEED = 5.0   # m/s: la de un dron cuyo modelo no declara velocidad de misión
+
+
+def speed_arg(value):
+    """--speed: un número (lo dijo el operador, vale para todos) o `vehicle`."""
+    return value if value == "vehicle" else float(value)
+
+
+def cruise_speed(device, speed):
+    """`vehicle`: la velocidad de misión del propio dron (`vehicle.speeds.mission` en devices.json,
+    del modelo del GCS), DEFAULT_SPEED si su modelo no la declara."""
+    if speed != "vehicle":
+        return speed
+    return float(((device.get("vehicle") or {}).get("speeds") or {}).get("mission", DEFAULT_SPEED))
+
+
 def oriented(views, came_from, going_to):
     """El bloque hacia adelante o al revés, el que menos cuesta entrar y salir."""
     forward, backward = views, views[::-1]
@@ -103,8 +119,10 @@ def build_task(r, views_by_block, world, args):
     wps.append(fmt.waypoint(landing, "landing", yaw=0))
     wps, vias, failed = add_transits(wps, world, args.safety)
 
-    params = {"idle_vel": args.speed, "max_vel": max(args.max_speed, args.speed)}
-    task = fmt.task(r["task_id"], r["uav"], device.get("category"), wps,
+    speed = cruise_speed(device, args.speed)
+    params = {"idle_vel": speed, "max_vel": max(args.max_speed, speed)}
+    # sin uav_type: el GCS lo pone al cargar, desde el device
+    task = fmt.task(r["task_id"], r["uav"], None, wps,
                     depends_on=r.get("depends_on", []), params=params)
     length = sum(dist(a["pos"], b["pos"]) for a, b in zip(wps, wps[1:]))
     return task, length, vias, failed
@@ -133,8 +151,9 @@ def add_transits(wps, world, safety):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--speed", type=float, default=fmt.DEFAULT_PARAMS["idle_vel"],
-                        help="velocidad de crucero (idle_vel), de MISSION PARAMETERS")
+    parser.add_argument("--speed", type=speed_arg, default="vehicle",
+                        help="velocidad de crucero (idle_vel), de MISSION PARAMETERS: un número para todos, "
+                             "o `vehicle` (la de cada dron)")
     parser.add_argument("--max-speed", type=float, default=fmt.DEFAULT_PARAMS["max_vel"])
     parser.add_argument("--takeoff-alt", type=float, default=10.0, help="altura del waypoint de despegue")
     parser.add_argument("--landing-alt", type=float, default=10.0,
@@ -167,7 +186,7 @@ def main():
         for f in failed:
             print(f"{task['task_id']}: SIN DESVÍO POSIBLE {f} (queda recto; el validador lo va a reportar)")
         photos = sum(w["type"] == "inspection" for w in task["wp"])
-        minutes = (length / args.speed + photos * args.hover_s) / 60
+        minutes = (length / task["params"]["idle_vel"] + photos * args.hover_s) / 60
         report.append((task, length, photos, minutes))
 
     fmt.save(fmt.mission(tasks, world.global_origin, name=args.name, description=args.description),
@@ -178,7 +197,7 @@ def main():
     for task, length, photos, minutes in report:
         deps = f", después de {', '.join(task['depends_on'])}" if task["depends_on"] else ""
         print(f"{task['task_id']} {task['device']}: {len(task['wp'])} wp ({photos} fotos), "
-              f"{length:.0f} m, ~{minutes:.1f} min a {args.speed} m/s{deps} · termina ~{finish[task['task_id']]:.1f} min")
+              f"{length:.0f} m, ~{minutes:.1f} min a {task['params']['idle_vel']} m/s{deps} · termina ~{finish[task['task_id']]:.1f} min")
     print(f"{len(tasks)} tareas, {len(world.targets)} targets · duración total ~{max(finish.values()):.1f} min "
           f"(ruta crítica) -> {args.data / 'mission.json'}")
 
