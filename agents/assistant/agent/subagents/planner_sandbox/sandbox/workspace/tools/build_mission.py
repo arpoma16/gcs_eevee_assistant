@@ -31,7 +31,7 @@ import numpy as np  # noqa: E402
 
 from lib import mission as fmt  # noqa: E402
 from lib.transit import Field, find_via  # noqa: E402
-from lib.views import Safety  # noqa: E402
+from lib.views import MAX_VIEWS, Safety  # noqa: E402
 from lib.world import World  # noqa: E402
 
 
@@ -172,6 +172,13 @@ def main():
     views_by_block = {}
     for v in views:
         views_by_block.setdefault(v["block"], []).append(v)
+
+    if len(views) > MAX_VIEWS:
+        per_block = ", ".join(f"{b}: {len(vs)}" for b, vs in sorted(views_by_block.items(), key=lambda x: -len(x[1])))
+        sys.exit(f"{len(views)} vistas superan el presupuesto de {MAX_VIEWS} y el ensamblado tardaría minutos "
+                 f"(un A* por cada tramo bloqueado). Vistas por bloque: {per_block}. Rehacé scripts/inspection.py "
+                 "con menos vistas (gsd_mm mayor, el `recommended` de describe.py; menos zonas; range_m acotado) "
+                 "y volvé a correr inspection → assign → build.")
 
     errors = check(views_by_block, routes_in, world)
     if errors:

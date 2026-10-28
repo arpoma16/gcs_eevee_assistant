@@ -92,6 +92,11 @@ def yaw_from_compass(heading):
 # motivos de rechazo
 # ---------------------------------------------------------------------------
 # Cada motivo es {"code", "msg"}. El código agrupa; el mensaje trae los números.
+# Presupuesto de vistas de una misión. El ensamblado busca un desvío (A*) por cada tramo bloqueado
+# y cuesta ~1 s por tramo: con ~1800 vistas (gsd 1.0 mm sobre una torre) tardó varios minutos.
+# Una misión detallada real ronda las 100-300 fotos.
+MAX_VIEWS = 600
+
 HINTS = {
     "altitude_max": "la superficie queda por encima del techo en todas las variantes: alejarse o girar no "
                     "lo arregla. Cambiá un estado ajustable (describe → state.adjustable), otra zona/superficie, "
@@ -303,3 +308,7 @@ def write_views(views, path=None, rejected=None, camera=None, safety=None):
             if code in HINTS:
                 print(f"  → {code}: {HINTS[code]}")
     print(f"-> {path}  ({len(views)} vistas, {len(rejected or [])} rechazadas)")
+    if len(views) > MAX_VIEWS:
+        print(f"AVISO: {len(views)} vistas superan el presupuesto de {MAX_VIEWS}; tools/build_mission.py se negará "
+              "a ensamblarlas. Pedí menos: un gsd_mm mayor (el `recommended` de describe.py), menos zonas o "
+              "`range_m` acotado en el bloque que más vistas da (ver el resumen de arriba).")

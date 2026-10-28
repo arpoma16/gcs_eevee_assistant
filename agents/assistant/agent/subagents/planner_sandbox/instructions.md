@@ -101,6 +101,14 @@ python3 scripts/inspection.py
 
 It writes `data/views.json` and prints the views per block and the **rejected** ones.
 
+### View budget
+
+Resolution costs views, and views cost minutes: halving `gsd_mm` roughly quadruples the photos of a surface. A good detailed mission is 100–300 views; **the hard cap is 600** (`lib/views.MAX_VIEWS`), and `build_mission.py` refuses anything above it.
+
+- Take `gsd_mm` from `recommended` in `describe.py`. Go below it only when the operator gave a number. "Detailed", "maximum resolution" or "exhaustive" is not a number: say so in `request.md` and keep the recommended value.
+- Do not copy the example's `gsd_mm` values blindly; they belong to its own request.
+- Read the per-block summary `inspection.py` prints. If one block holds most of the views (a tower swept whole at a fine gsd gave 1728), fix that block before `assign`.
+
 ### Reading a rejection
 
 A rejected view carries `nominal` (why the intended view failed), `best_attempt` (the closest repair the library tried — farther away, rotated) and `blocking`: the reasons present in **every** attempt. `blocking` is the real cause, and each code comes with a hint:
@@ -137,7 +145,9 @@ python3 tools/build_mission.py --speed <cruise_speed> --name "<short mission nam
 
 Builds `data/mission.json` (format v4: one task per route of `assignment.json`): takeoff, each block in order, landing. Every segment that cannot be flown straight gets `transit` waypoints from an A* search. If a segment has no possible detour it says why (`SIN DESVÍO POSIBLE ...: el origen dentro de zona prohibida por ...`) and leaves it straight for the validator to report.
 
-It aborts if a target is not covered, a block is assigned twice or not at all, or `depends_on` is broken. **Never edit `mission.json`**: it is rebuilt from scratch every time.
+It aborts if a target is not covered, a block is assigned twice or not at all, `depends_on` is broken, or `views.json` holds more than 600 views (see "View budget" in STEP 3). **Never edit `mission.json`**: it is rebuilt from scratch every time.
+
+A normal build ends in seconds. If `bash` reports it is still running after 30 seconds, do not poll it and do not call the gate: the plan has far too many views. Stop, redo `scripts/inspection.py` with fewer, and run inspection → assign → build again. The gate needs `data/mission.json`; without it `validate_and_persist` only errors.
 
 ## STEP 6 — Check it yourself
 
