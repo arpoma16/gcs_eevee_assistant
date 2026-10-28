@@ -44,6 +44,20 @@ Internally `dev:all` starts one `eve dev --no-ui` per member with `EVE_PUBLIC_RO
 
 `dev:all` is also the only mode that enables the default workspace transport: with it, `defineWorkspaceAgent({ name })` under `agents/<caller>/agent/subagents/` lets one agent call another with no URL and no credentials. Under `eve dev` a peer needs an explicit `transport: { url, auth }`.
 
+### Sandbox provider under `dev:all`: it fails with an OIDC error
+
+`DefaultSandbox.environment()` (every `sandbox/sandbox.ts` here) picks its provider with `!!process.env.VERCEL` (`eve/dist/src/sandbox/providers/default.js`). `vercel dev` runs the agents with that set, so under `dev:all` eve selects **Vercel Sandbox** — a remote provider that needs an OIDC token from a linked project. Without one, the first sandbox access (e.g. the assistant calling `prepare_mission_input`) fails with:
+
+```
+Failed to prepare Vercel sandbox snapshot ... Could not get credentials from OIDC context.
+```
+
+It is not an `.env` or code problem. Under `eve dev` (`dev:assistant`, `dev:monitor`, `dev:planner_sandbox`) `VERCEL` is unset and eve falls back to Docker, then microsandbox, then just-bash, so no credentials are needed.
+
+- **Now:** use `npm run dev:assistant` (Docker). `dev:all` is only needed for the workspace transport, and the assistant uses its own local copy of `planner_sandbox` (`agents/assistant/agent/subagents/planner_sandbox/`), not the root one.
+- **Planned, not done yet:** pin the provider in the `sandbox.ts` files with `DockerSandbox.environment(...)` instead of `DefaultSandbox`, so `dev:all` works without linking a Vercel project. This is safe here because production is `eve start` behind a proxy, not a Vercel deployment; eve itself warns that Docker/microsandbox are unavailable *on* Vercel. Revisit if the app is ever deployed to Vercel. Alternative: `npx vercel link` + `npx vercel env pull`, which runs sandboxes in Vercel's cloud (account, network, cost).
+- The first sandbox access runs every template's `prepare` (the planner sandbox does `apt-get` + `pip`), so it is slow once and needs internet. During `eve dev` this prepares all templates in the compiled generation, including subagents'.
+
 `eve info --agent <name>` confirms discovery and prints diagnostics without booting a server — the cheapest check after changing authored files. It does **not** load `.env`.
 
 ## Model selection
