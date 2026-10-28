@@ -86,7 +86,7 @@ const CATALOG: Record<Provider, ProviderEntry> = {
     requires: "OPENAI_API_KEY",
     models: {
       high: "gpt-5.1",
-      medium: "gpt-5-mini",
+      medium: "gpt-5.1",//gpt-5-mini
       low: "gpt-5-nano",
     },
     build: (modelId) => openai(modelId),
@@ -144,6 +144,16 @@ function resolveProvider(): Provider {
   return available;
 }
 
+/** `resolveModel` corre en cada `step.started`: se loguea cada combinación una sola vez por proceso. */
+const logged = new Set<string>();
+
+function logSelection(provider: Provider, tier: Tier, modelId: string): void {
+  const key = `${provider}/${tier}/${modelId}`;
+  if (logged.has(key)) return;
+  logged.add(key);
+  console.info(`[models] provider=${provider} tier=${tier} model=${modelId}`);
+}
+
 /**
  * Resuelve el modelo para un tier contra el provider activo.
  *
@@ -155,6 +165,7 @@ export function resolveModel(tier: Tier): ModelSelection {
   const provider = resolveProvider();
   const entry = CATALOG[provider];
   const modelId = modelOverride(tier) ?? entry.models[tier];
+  logSelection(provider, tier, modelId);
 
   const contextWindowTokens = entry.contextWindowTokens?.();
 
