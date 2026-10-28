@@ -175,6 +175,14 @@ share the format through `shared/mission-plan-source.ts`.
 
 Without a parent (the root `agents/planner_sandbox/` test agent) the source is just `planner_sandbox`.
 
+## Debugging a run: `hooks/dump-workspace.ts`
+
+eve deletes this subagent's container when its session ends. `hooks/dump-workspace.ts` copies `/workspace` to
+the host at the end of every turn, including failed and cancelled ones, into
+`agents/assistant/.eve/sandbox-dumps/<sessionId>/`. Nothing cleans those dumps up. Location, what to look at
+and the cleanup commands are documented in the root `AGENTS.md`, section "Debugging the planner sandbox:
+workspace dumps". If a workspace path changes (`request.md`, `scripts/`, `data/`), update that section too.
+
 ## Pending (agreed, deliberately deferred)
 
 - **UAV–UAV deconfliction.** The validator does not yet check separation between routes flying at the same

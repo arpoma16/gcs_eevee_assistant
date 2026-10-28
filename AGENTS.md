@@ -58,6 +58,33 @@ It is not an `.env` or code problem. Under `eve dev` (`dev:assistant`, `dev:moni
 - **Planned, not done yet:** pin the provider in the `sandbox.ts` files with `DockerSandbox.environment(...)` instead of `DefaultSandbox`, so `dev:all` works without linking a Vercel project. This is safe here because production is `eve start` behind a proxy, not a Vercel deployment; eve itself warns that Docker/microsandbox are unavailable *on* Vercel. Revisit if the app is ever deployed to Vercel. Alternative: `npx vercel link` + `npx vercel env pull`, which runs sandboxes in Vercel's cloud (account, network, cost).
 - The first sandbox access runs every template's `prepare` (the planner sandbox does `apt-get` + `pip`), so it is slow once and needs internet. During `eve dev` this prepares all templates in the compiled generation, including subagents'.
 
+### Debugging the planner sandbox: workspace dumps
+
+eve deletes a session's sandbox when the session ends (the Docker provider runs `docker rm -f` from `onSandboxDelete`) and has no option to keep it. So the container the planner worked in is gone by the time you want to see what it did. Instead, `agents/assistant/agent/subagents/planner_sandbox/hooks/dump-workspace.ts` copies `/workspace` to the host at the end of every planner turn: on `turn.completed`, `turn.failed` and `turn.cancelled`. The failed and cancelled turns are the ones you most need to inspect.
+
+- **Where:** `<cwd>/.eve/sandbox-dumps/<sessionId>/`. With `npm run dev:assistant` the cwd is the app root, so the dumps land in `agents/assistant/.eve/sandbox-dumps/`. Override the root with `PLANNER_SANDBOX_DUMP_DIR`. The log prints `[planner_sandbox] workspace copiado a <path>` with the exact path. `.eve` is gitignored, so `fd`/`rg` skip it unless you pass `-I`/`-uu`. The `<sessionId>` is the planner's workflow run id (`wrun_…`).
+- **What:** the extracted workspace (`request.md`, `scripts/`, `data/` with `mission.json`, `validation.json`, `assignment.json`, `views.json`…) plus the `workspace.tar.gz` it came from. `.eve/` attachments and `__pycache__` are left out.
+- **Overwrite:** one directory per planner session, and each turn replaces it. You get the session's last state, not a history of turns.
+- **Provider-agnostic:** it uses `sandbox.run` and `readBinaryFile`, so it works the same on Docker, microsandbox or Vercel Sandbox.
+
+What to look at when a plan goes wrong:
+
+- `request.md` missing → the model skipped STEP 1.
+- `data/mission.json` present but no plan in the GCS with this request's `source` → it never passed the gate (`validate_and_persist`). `request_mission_plan` then reports `failed` with no id. The plan id never comes from the planner's text: see "How the plan id reaches the assistant" in `agents/assistant/agent/subagents/planner_sandbox/AGENTS.md`.
+- `data/validation.json` → the last validator findings.
+- `scripts/inspection.py` → what it actually decided to inspect.
+
+Nothing deletes the dumps, so they accumulate. Each dump includes `data/models/` and every intermediate file, so check the size from time to time and clean up:
+
+```sh
+du -sh agents/assistant/.eve/sandbox-dumps                           # total
+eza -l --sort=modified agents/assistant/.eve/sandbox-dumps           # newest last
+fd -I --max-depth 1 --type d --changed-before 7d . agents/assistant/.eve/sandbox-dumps -x rm -rf   # older than a week
+rm -rf agents/assistant/.eve/sandbox-dumps                           # everything
+```
+
+Caveat: if a turn ends before the planner ever touched its sandbox, the hook's `ctx.getSandbox()` creates one just to dump it. That costs time, not correctness. To turn the dumps off, delete or move the hook file.
+
 `eve info --agent <name>` confirms discovery and prints diagnostics without booting a server — the cheapest check after changing authored files. It does **not** load `.env`.
 
 ## Model selection
