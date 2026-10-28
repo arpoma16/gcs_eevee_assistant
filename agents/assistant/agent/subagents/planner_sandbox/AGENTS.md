@@ -157,6 +157,24 @@ penetration`.
 
 `MAX_VALIDATION_ITERATIONS` lives in `instructions.md` §1 and in whatever counts gate calls — keep in sync.
 
+### How the plan id reaches the assistant
+
+Not through the planner's final answer. With `outputSchema`, eve only accepts that answer as an
+`eve__reply` tool call. A model that writes the JSON as text instead fails the turn with
+`OUTPUT_SCHEMA_NOT_FULFILLED`, even after the gate persisted a valid plan. And `endsTurn` cannot make the
+gate the last call: eve ignores it in delegated sessions and structured-output turns.
+
+So the gate tags what it persists. `MissionPlan.source` is
+`planner_sandbox:<valid|invalid>:<parent sessionId>:<parent callId>`, from `ctx.session.parent`, and
+`MissionPlan.name` is the mission's name. `request_mission_plan` rebuilds the same pair from its own
+`ctx.session.id` + `ctx.callId` (eve builds both from the same dispatch, `execution/tools/workflow/start.js`
+and `execution/agent-sessions/context.js`). It looks the plan up in `GET /missions/plans` and returns
+**that** id and validity, whatever the planner answered. When no plan matches, the result is `failed`
+with no id, and the `planID` regex over the planner's report is not used for this planner. Both sides
+share the format through `shared/mission-plan-source.ts`.
+
+Without a parent (the root `agents/planner_sandbox/` test agent) the source is just `planner_sandbox`.
+
 ## Pending (agreed, deliberately deferred)
 
 - **UAV–UAV deconfliction.** The validator does not yet check separation between routes flying at the same

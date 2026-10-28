@@ -2,6 +2,8 @@ import { defineWorkflowTool } from "eve/tools";
 import { encode } from "@toon-format/toon";
 import { z } from "zod";
 
+import { matchPlannerPlanSource, type PlannerRequest } from "#shared/mission-plan-source";
+
 const GCS_API_URL = process.env.MUAV_API_URL ?? "http://localhost:4000/api";
 
 // Qué planner recibe el trabajo. `planner` razona la geometría; `planner_sandbox`
@@ -81,6 +83,26 @@ async function resolveBriefing(
     throw new Error(body?.error ?? `Mission briefing conversion failed (HTTP ${response.status})`);
   }
   return body as Briefing;
+}
+
+/**
+ * The plan the planner_sandbox gate persisted for this request, if any: the latest one, since a
+ * gate call after a valid one would persist again.
+ */
+async function findPersistedPlan(request: PlannerRequest): Promise<{ id: number; valid: boolean } | undefined> {
+  "use step";
+
+  const response = await fetch(`${GCS_API_URL}/missions/plans`);
+  if (!response.ok) {
+    throw new Error(`Could not list mission plans from the GCS (HTTP ${response.status})`);
+  }
+  const plans = (await response.json()) as { id: number; source?: string }[];
+  let found: { id: number; valid: boolean } | undefined;
+  for (const plan of plans) {
+    const match = matchPlannerPlanSource(plan.source, request);
+    if (match && (!found || plan.id > found.id)) found = { id: plan.id, valid: match.valid };
+  }
+  return found;
 }
 
 /**
@@ -224,6 +246,24 @@ export default defineWorkflowTool({
       { outputSchema: PLANNER_RESULT_SCHEMA, signal: ctx.abortSignal },
     );
     const { data, status, error } = await response.result();
+
+    // The pipeline planner's gate tags the plan it persists with this call, so the id comes from the
+    // GCS — not from the planner's final answer, which the model can get wrong or never write.
+    if (USES_PIPELINE) {
+      const persisted = await findPersistedPlan({ sessionId: ctx.session.id, callId: ctx.callId });
+      if (persisted) {
+        const report = status === "failed" ? undefined : (data as PlannerResult | undefined);
+        return {
+          ...report,
+          status: persisted.valid ? "valid" : "failed",
+          description:
+            report?.description ??
+            `The planner persisted the mission but did not write its final report (${error?.message ?? "no result"}).`,
+          missionPlanId: persisted.id,
+        };
+      }
+    }
+
     if (status === "failed" || data === undefined) {
       throw new Error(`The planner did not finish: ${error?.message ?? "no result returned"}`);
     }
@@ -233,8 +273,22 @@ export default defineWorkflowTool({
     // has to copy it out of the gate's prose ("...with planID 42..."). That
     // number is written by the server, so re-read it from the report and let it
     // win over the copy: a model that drops a digit sends the operator to
-    // someone else's mission.
-    const reported = /planID (\d+)/.exec(result.validationReport ?? "")?.[1];
-    return reported ? { ...result, missionPlanId: Number(reported) } : result;
+    // someone else's mission. The pipeline planner never gets here with a plan:
+    // its gate is looked up in the GCS above, and the report is model text it
+    // could invent a planID in.
+    const reported = USES_PIPELINE ? undefined : /planID (\d+)/.exec(result.validationReport ?? "")?.[1];
+    if (reported) return { ...result, missionPlanId: Number(reported) };
+
+    // No planID in the report means the gate never persisted anything, so any id
+    // the planner returned is invented: showing it 404s at best, or opens an
+    // unrelated plan. Drop it and report the run as failed.
+    const { missionPlanId: _invented, ...rest } = result;
+    return {
+      ...rest,
+      status: "failed",
+      description:
+        `${result.description} — NOT PERSISTED: the planner finished without passing the validation gate, ` +
+        "so there is no mission plan to show. Do not call show_mission_to_user; tell the operator and offer to retry.",
+    };
   },
 });

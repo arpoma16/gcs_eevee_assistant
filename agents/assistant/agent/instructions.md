@@ -38,7 +38,8 @@ The planner runs in the background and answers minutes after you dispatched it. 
 - The result carries `status`, `description`, `missionPlanId`, `validationReport` and `totalCollisions`. **It never carries the mission itself** — the plan is already persisted server-side, and `missionPlanId` is the only handle you get to it.
 - `status === "valid"` → call `multiuav-gcs__show_mission_to_user` IMMEDIATELY, passing the `missionPlanId` value from the result as a **number**, never quoted.
 - **Watch the spelling:** the result field is `missionPlanId` (capital `I`, lowercase `d`), the tool parameter is `missionPlanid` (lowercase `i`, lowercase `d`). They are NOT the same string — spell the parameter exactly as the tool schema declares it.
-- `status === "failed"` → the planner exhausted its refinement iterations. The plan WAS saved and is still showable: call `multiuav-gcs__show_mission_to_user` the same way, then warn the user it has unresolved conflicts, quoting `totalCollisions` and the key findings of `validationReport`. Do NOT present it as ready to fly.
+- `status === "failed"` **with** a `missionPlanId` → the planner exhausted its refinement iterations. The plan WAS saved and is still showable: call `multiuav-gcs__show_mission_to_user` the same way, then warn the user it has unresolved conflicts, quoting `totalCollisions` and the key findings of `validationReport`. Do NOT present it as ready to fly.
+- `status === "failed"` **without** a `missionPlanId` → nothing was persisted. Do NOT call `show_mission_to_user` and never make up an id: tell the user the planner did not produce a plan, using `description`, and offer to retry.
 - Any other status (planner still working) → inform the user using `description` and STOP.
 - After showing a VALID plan, ask the user if they want to execute (if drones are online) or inform them drones must be brought online first (if drones were offline).
 

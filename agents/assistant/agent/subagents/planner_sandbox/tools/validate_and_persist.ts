@@ -1,6 +1,8 @@
 import { defineTool } from "eve/tools";
 import { z } from "zod";
 
+import { plannerPlanSource } from "#shared/mission-plan-source";
+
 import { GATE_COMMAND } from "../lib/gate";
 
 const GCS_API_URL = process.env.MUAV_API_URL ?? "http://localhost:4000/api";
@@ -73,7 +75,11 @@ export default defineTool({
     // Persist: the plan is stored geodetic, so it goes back through the GCS converter (needs global_origin).
     const mission = JSON.parse(missionRaw);
     const geodetic = await post("/missions/convert/xyz-to-geodetic", mission);
-    const saved = await post("/missions/plans", { missionData: geodetic });
+    // `source` ties the plan to the parent's request_mission_plan call, which reads the id back from the
+    // GCS — the planner's final answer is not the only way the id reaches the main chat.
+    const parent = ctx.session.parent;
+    const source = parent ? plannerPlanSource(parent, validation.valid) : "planner_sandbox";
+    const saved = await post("/missions/plans", { missionData: geodetic, name: mission.name, source });
 
     return {
       valid: validation.valid,
